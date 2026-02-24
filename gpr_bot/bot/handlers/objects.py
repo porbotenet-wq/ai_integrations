@@ -120,7 +120,7 @@ async def object_team(callback: CallbackQuery, callback_data: ObjectCB, db_user:
 
 # ─── NAV: Back to objects ────────────────────────────────
 
-@router.callback_query(NavCB.filter(F.to == "back", F.ctx == "objects"))
+@router.callback_query(NavCB.filter((F.to == "back") & (F.ctx == "objects")))
 async def nav_back_objects(callback: CallbackQuery, db_user: User | None, session):
     user = _require_auth(db_user)
     if not user:
@@ -136,7 +136,7 @@ async def nav_back_objects(callback: CallbackQuery, db_user: User | None, sessio
     await callback.answer()
 
 
-@router.callback_query(NavCB.filter(F.to == "back", F.ctx == "object_detail"))
+@router.callback_query(NavCB.filter((F.to == "back") & (F.ctx == "object_detail")))
 async def nav_back_object_detail(callback: CallbackQuery, callback_data: NavCB, db_user: User | None, session):
     user = _require_auth(db_user)
     if not user:

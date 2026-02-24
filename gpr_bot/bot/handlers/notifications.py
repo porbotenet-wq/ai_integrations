@@ -63,7 +63,7 @@ async def notif_read(callback: CallbackQuery, callback_data: NotifCB, db_user: U
 
 from bot.utils.callbacks import NavCB
 
-@router.callback_query(NavCB.filter(F.to == "back", F.ctx == "notifications"))
+@router.callback_query(NavCB.filter((F.to == "back") & (F.ctx == "notifications")))
 async def nav_back_notifs(callback: CallbackQuery, db_user: User | None, session):
     if not db_user:
         await callback.answer("Авторизуйтесь")

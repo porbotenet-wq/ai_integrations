@@ -266,7 +266,7 @@ async def task_comment_save(message: Message, state: FSMContext, db_user: User |
 
 # ─── NAV: Back to tasks ─────────────────────────────────
 
-@router.callback_query(NavCB.filter(F.to == "back", F.ctx == "tasks"))
+@router.callback_query(NavCB.filter((F.to == "back") & (F.ctx == "tasks")))
 async def nav_back_tasks(callback: CallbackQuery, db_user: User | None, session):
     user = _require_auth(db_user)
     if not user:
