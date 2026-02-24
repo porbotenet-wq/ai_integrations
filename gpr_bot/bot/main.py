@@ -55,6 +55,8 @@ async def main():
     await bot.set_my_commands([
         BotCommand(command="start", description="Главное меню"),
         BotCommand(command="admin", description="Админ-панель"),
+        BotCommand(command="viewas", description="Просмотр от лица роли"),
+        BotCommand(command="newobject", description="Создать объект"),
     ])
 
     logger.info("Bot starting...")
