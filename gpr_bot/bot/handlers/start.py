@@ -5,20 +5,28 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, func
 from bot.db.models import User, UserRole, Task, TaskStatus, ConstructionObject, ObjectStatus
 from bot.db.session import async_session
-from bot.keyboards.main_menu import main_menu_inline, object_card_text
+from bot.keyboards.main_menu import main_menu_inline
 from bot.services.notification_service import get_unread_count
 from bot.states.forms import RegisterForm
 from bot.rbac.permissions import ROLE_NAMES
+from bot.utils.formatters import LINE, progress_bar
 from bot.config import get_settings
 
 router = Router()
 
-WELCOME_LOGO = (
-    "━━━━━━━━━━━━━━━━━━━━\n"
-    "  🏗  <b>STSphera</b>  🏗\n"
-    "  Управление строительством\n"
-    "━━━━━━━━━━━━━━━━━━━━"
-)
+
+def _greeting() -> str:
+    from datetime import datetime
+    h = datetime.now().hour
+    if h < 6: return "🌙"
+    if h < 12: return "☀️"
+    if h < 18: return "🌤"
+    return "🌆"
+
+
+def _role_badge(role) -> str:
+    name = ROLE_NAMES.get(role, role.value if hasattr(role, 'value') else str(role))
+    return f"⟨ {name} ⟩"
 
 
 @router.message(CommandStart())
@@ -26,7 +34,6 @@ async def cmd_start(message: Message, db_user: User | None, session, state: FSMC
     await state.clear()
     settings = get_settings()
 
-    # Deep links
     args = message.text.split(maxsplit=1)
     deep_link = args[1] if len(args) > 1 else None
 
@@ -44,9 +51,14 @@ async def cmd_start(message: Message, db_user: User | None, session, state: FSMC
             db_user = user
         else:
             await message.answer(
-                f"{WELCOME_LOGO}\n\n"
-                "👋 Добро пожаловать!\n\n"
-                "Для начала работы введите ваше <b>ФИО</b>:",
+                f"{'─' * 30}\n"
+                f"  🏗  <b>S T S p h e r a</b>\n"
+                f"{'─' * 30}\n\n"
+                f"Система управления\n"
+                f"фасадным строительством\n\n"
+                f"{'┄' * 30}\n\n"
+                f"Для начала работы\n"
+                f"введите ваше <b>ФИО</b>:",
                 parse_mode="HTML",
             )
             await state.set_state(RegisterForm.full_name)
@@ -54,19 +66,21 @@ async def cmd_start(message: Message, db_user: User | None, session, state: FSMC
 
     if not db_user.is_active:
         await message.answer(
-            f"{WELCOME_LOGO}\n\n"
-            "⏳ Ваша заявка ожидает одобрения администратора.\n"
-            "Вы получите уведомление.",
+            f"⏳ Заявка на рассмотрении.\n"
+            f"Вы получите уведомление.",
             parse_mode="HTML",
         )
         return
 
-    # Build welcome message with stats
-    unread = await get_unread_count(session, db_user.id)
-    role_name = ROLE_NAMES.get(db_user.role, db_user.role.value)
+    await _send_main_menu(message, db_user, session)
 
-    # Quick stats
-    active_objects = (await session.execute(
+
+async def _send_main_menu(message: Message, db_user: User, session, edit: bool = False):
+    """Отправить или отредактировать главное меню"""
+    unread = await get_unread_count(session, db_user.id)
+
+    # Stats
+    active_obj = (await session.execute(
         select(func.count(ConstructionObject.id))
         .where(ConstructionObject.status == ObjectStatus.ACTIVE)
     )).scalar() or 0
@@ -83,53 +97,64 @@ async def cmd_start(message: Message, db_user: User | None, session, state: FSMC
         .where(Task.status == TaskStatus.OVERDUE)
     )).scalar() or 0
 
-    # Greeting based on time
-    from datetime import datetime
-    hour = datetime.now().hour
-    if hour < 6:
-        greeting = "🌙 Доброй ночи"
-    elif hour < 12:
-        greeting = "☀️ Доброе утро"
-    elif hour < 18:
-        greeting = "🌤 Добрый день"
+    done = (await session.execute(
+        select(func.count(Task.id))
+        .where(Task.assignee_id == db_user.id)
+        .where(Task.status == TaskStatus.DONE)
+    )).scalar() or 0
+
+    total = my_tasks + done + overdue
+    pct = round(done / total * 100) if total > 0 else 0
+
+    g = _greeting()
+    role = _role_badge(db_user.role)
+
+    # Build message
+    lines = [
+        f"{'─' * 30}",
+        f"  🏗  <b>S T S p h e r a</b>",
+        f"{'─' * 30}",
+        f"",
+        f"{g}  <b>{db_user.full_name}</b>",
+        f"      {role}",
+        f"",
+    ]
+
+    # Stats block
+    if total > 0 or active_obj > 0:
+        lines.append(f"{'┄' * 30}")
+        if active_obj:
+            lines.append(f"  🏗  Объектов     <b>{active_obj}</b>")
+        if my_tasks:
+            lines.append(f"  ⚡  В работе     <b>{my_tasks}</b>")
+        if overdue:
+            lines.append(f"  🔴  Просрочено   <b>{overdue}</b>")
+        if unread:
+            lines.append(f"  🔔  Новых        <b>{unread}</b>")
+        if total > 0:
+            lines.append(f"")
+            lines.append(f"  {progress_bar(pct)}")
+        lines.append(f"{'┄' * 30}")
     else:
-        greeting = "🌆 Добрый вечер"
+        lines.append(f"  ✨  Нет активных задач")
+        lines.append(f"{'┄' * 30}")
 
-    stats_lines = []
-    if active_objects:
-        stats_lines.append(f"🏗 Объектов: <b>{active_objects}</b>")
-    if my_tasks:
-        stats_lines.append(f"⚡ Задач в работе: <b>{my_tasks}</b>")
-    if overdue:
-        stats_lines.append(f"⚠️ Просрочено: <b>{overdue}</b>")
-    if unread:
-        stats_lines.append(f"🔔 Непрочитанных: <b>{unread}</b>")
+    text = "\n".join(lines)
+    kb = main_menu_inline(db_user.role, unread)
 
-    stats = "\n".join(stats_lines) if stats_lines else "✨ Всё чисто, задач нет"
-
-    text = (
-        f"{WELCOME_LOGO}\n\n"
-        f"{greeting}, <b>{db_user.full_name}</b>!\n"
-        f"🔑 {role_name}\n\n"
-        f"{stats}\n\n"
-        f"Выберите раздел:"
-    )
-
-    await message.answer(
-        text,
-        reply_markup=main_menu_inline(db_user.role, unread),
-        parse_mode="HTML",
-    )
+    if edit:
+        await message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
-# ─── Menu button handlers ────────────────────────────────
+# ─── Menu callbacks ──────────────────────────────────────
 
 @router.callback_query(F.data == "menu:objects")
 async def menu_objects(callback: CallbackQuery, db_user: User | None, session):
     if not db_user:
         await callback.answer("Авторизуйтесь: /start")
         return
-    # Trigger the objects handler
     from bot.handlers.objects import my_objects
     await callback.answer()
     await my_objects(callback.message, db_user, session)
@@ -168,15 +193,21 @@ async def menu_dashboard(callback: CallbackQuery, db_user: User | None, session)
 @router.callback_query(F.data == "menu:fact")
 async def menu_fact(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    from bot.handlers.fact import cmd_fact
-    # Create a fake message-like call
-    await callback.message.answer("Используйте команду /fact для ввода факта.")
+    await callback.message.answer(
+        "📝 <b>Ввод факта выполнения</b>\n\n"
+        "Нажмите /fact чтобы начать.",
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data == "menu:newtask")
 async def menu_newtask(callback: CallbackQuery):
     await callback.answer()
-    await callback.message.answer("Используйте команду /newtask для создания задачи.")
+    await callback.message.answer(
+        "➕ <b>Создание задачи</b>\n\n"
+        "Нажмите /newtask чтобы начать.",
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data == "menu:admin")
@@ -206,32 +237,13 @@ async def menu_help(callback: CallbackQuery, db_user: User | None, **kwargs):
     await cmd_help(callback.message, db_user)
 
 
-# ─── Back to main menu ───────────────────────────────────
-
 @router.callback_query(F.data == "menu:main")
 async def back_to_main(callback: CallbackQuery, db_user: User | None, session):
     if not db_user:
         await callback.answer()
         return
-    unread = await get_unread_count(session, db_user.id)
-    role_name = ROLE_NAMES.get(db_user.role, db_user.role.value)
-
-    from datetime import datetime
-    hour = datetime.now().hour
-    greeting = "☀️" if hour < 18 else "🌆"
-
-    text = (
-        f"{WELCOME_LOGO}\n\n"
-        f"{greeting} <b>{db_user.full_name}</b> | {role_name}\n\n"
-        f"Выберите раздел:"
-    )
-
     await callback.answer()
-    await callback.message.edit_text(
-        text,
-        reply_markup=main_menu_inline(db_user.role, unread),
-        parse_mode="HTML",
-    )
+    await _send_main_menu(callback.message, db_user, session, edit=True)
 
 
 # ─── Registration ────────────────────────────────────────
@@ -239,7 +251,9 @@ async def back_to_main(callback: CallbackQuery, db_user: User | None, session):
 @router.message(RegisterForm.full_name)
 async def register_name(message: Message, state: FSMContext):
     await state.update_data(full_name=message.text.strip())
-    await message.answer("📱 Введите ваш номер телефона:")
+    await message.answer(
+        "📱 Номер телефона:",
+    )
     await state.set_state(RegisterForm.phone)
 
 
@@ -259,12 +273,15 @@ async def register_phone(message: Message, state: FSMContext, session):
     )
     session.add(user)
     await session.commit()
-
     await state.clear()
+
     await message.answer(
-        "✅ <b>Заявка отправлена!</b>\n\n"
-        "Администратор назначит роль и подтвердит доступ.\n"
-        "Вы получите уведомление.",
+        f"{'─' * 30}\n"
+        f"  ✅  <b>Заявка отправлена</b>\n"
+        f"{'─' * 30}\n\n"
+        f"Администратор назначит роль\n"
+        f"и подтвердит доступ.\n\n"
+        f"Ожидайте уведомление.",
         parse_mode="HTML",
     )
 
@@ -273,10 +290,12 @@ async def register_phone(message: Message, state: FSMContext, session):
         try:
             await message.bot.send_message(
                 admin_id,
-                f"🆕 <b>Новая заявка</b>\n\n"
-                f"👤 {full_name}\n"
-                f"📱 {phone}\n"
-                f"TG: @{message.from_user.username or '—'}\n\n"
+                f"🆕 <b>Новая заявка</b>\n"
+                f"{'┄' * 28}\n"
+                f"  👤  {full_name}\n"
+                f"  📱  {phone}\n"
+                f"  TG  @{message.from_user.username or '—'}\n"
+                f"{'┄' * 28}\n\n"
                 f"/admin — управление",
                 parse_mode="HTML",
             )
