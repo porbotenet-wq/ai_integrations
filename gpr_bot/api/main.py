@@ -259,6 +259,10 @@ app.include_router(production_router)
 app.include_router(excel_router)
 app.include_router(analytics_router)
 
+# ─── MINI APP V2 ROUTES ──────────────────────────────────
+from api.routes.miniapp import register_miniapp_routes
+register_miniapp_routes(app)
+
 
 @app.get("/health")
 async def health():
