@@ -248,6 +248,16 @@ async def get_construction_stages(object_id: int, db: AsyncSession = Depends(get
     ]
 
 
+# ─── PRODUCTION / EXCEL / ANALYTICS ROUTES ───────────────
+from api.routes.production import router as production_router
+from api.routes.excel import router as excel_router
+from api.routes.analytics import router as analytics_router
+
+app.include_router(production_router)
+app.include_router(excel_router)
+app.include_router(analytics_router)
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}

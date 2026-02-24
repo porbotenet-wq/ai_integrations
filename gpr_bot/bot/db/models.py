@@ -535,7 +535,8 @@ class DailyPlanFact(Base):
     __tablename__ = "daily_plan_fact"
 
     id = Column(Integer, primary_key=True)
-    gpr_item_id = Column(Integer, ForeignKey("gpr_items.id", ondelete="CASCADE"), nullable=False)
+    object_id = Column(Integer, ForeignKey("objects.id"))
+    gpr_item_id = Column(Integer, ForeignKey("gpr_items.id", ondelete="CASCADE"), nullable=True)
     date = Column(Date, nullable=False)
     work_name = Column(String(500))
     fact_volume = Column(Float, default=0)
@@ -545,7 +546,125 @@ class DailyPlanFact(Base):
     deviation = Column(Float, default=0)
     completion_pct = Column(Float, default=0)
     executor_id = Column(Integer, ForeignKey("users.id"))
+    work_type_id = Column(Integer, ForeignKey("work_types.id"))
+    work_code = Column(String(50))
+    sequence_order = Column(Integer, default=0)
+    crew_id = Column(Integer, ForeignKey("crews.id"))
+    crew_code = Column(String(50))
+    workers_count = Column(Integer)
+    productivity = Column(Float)
+    inspection_status = Column(String(50), default="Нет")
+    inspection_date = Column(Date)
+    cumulative_plan = Column(Float)
+    cumulative_fact = Column(Float)
+    cumulative_pct = Column(Float)
+    day_number = Column(Integer)
+    week_number = Column(String(20))
+    floor = Column(Integer)
+    facade = Column(String(100))
     created_at = Column(DateTime, default=func.now())
 
     gpr_item = relationship("GPRItem", back_populates="daily_plan_facts")
     executor = relationship("User")
+    work_type = relationship("WorkType")
+    crew = relationship("Crew")
+
+
+# ─── PRODUCTION MODELS (Excel СПК Блок Б) ───────────────
+
+class Crew(Base):
+    """Бригады"""
+    __tablename__ = "crews"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(50), unique=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    foreman = Column(String(255))
+    phone = Column(String(50))
+    specialization = Column(Text)
+    max_workers = Column(Integer, default=0)
+    status = Column(String(20), default="active")
+    object_id = Column(Integer, ForeignKey("objects.id"))
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    object = relationship("ConstructionObject")
+
+
+class WorkType(Base):
+    """Виды работ"""
+    __tablename__ = "work_types"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(50), unique=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    unit = Column(String(50), default="шт")
+    category = Column(String(100))
+    sequence_order = Column(Integer, default=0)
+    requires_inspection = Column(Boolean, default=False)
+    default_crew_id = Column(Integer, ForeignKey("crews.id"))
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    default_crew = relationship("Crew")
+
+
+class FloorVolume(Base):
+    """Объёмы по этажам/фасадам"""
+    __tablename__ = "floor_volumes"
+
+    id = Column(Integer, primary_key=True)
+    object_id = Column(Integer, ForeignKey("objects.id"), nullable=False)
+    floor = Column(Integer, nullable=False)
+    facade = Column(String(100), nullable=False)
+    work_type_id = Column(Integer, ForeignKey("work_types.id"), nullable=False)
+    plan_qty = Column(Float, default=0)
+    fact_qty = Column(Float, default=0)
+    inspection_brackets = Column(String(50), default="Не сдано")
+    inspection_floor = Column(String(50), default="Не сдано")
+    status = Column(String(20), default="not_started")
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    object = relationship("ConstructionObject")
+    work_type = relationship("WorkType")
+
+
+class GPRWeekly(Base):
+    """ГПР понедельная разбивка"""
+    __tablename__ = "gpr_weekly"
+
+    id = Column(Integer, primary_key=True)
+    object_id = Column(Integer, ForeignKey("objects.id"), nullable=False)
+    work_type_id = Column(Integer, ForeignKey("work_types.id"), nullable=False)
+    week_code = Column(String(20), nullable=False)
+    week_start = Column(Date)
+    plan_qty = Column(Float, default=0)
+    fact_qty = Column(Float, default=0)
+    created_at = Column(DateTime, default=func.now())
+
+    object = relationship("ConstructionObject")
+    work_type = relationship("WorkType")
+
+
+class DailyProgress(Base):
+    """Прогресс по датам (консолидация)"""
+    __tablename__ = "daily_progress"
+
+    id = Column(Integer, primary_key=True)
+    object_id = Column(Integer, ForeignKey("objects.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    day_number = Column(Integer)
+    week_code = Column(String(20))
+    modules_plan = Column(Float, default=0)
+    modules_fact = Column(Float, default=0)
+    brackets_plan = Column(Float, default=0)
+    brackets_fact = Column(Float, default=0)
+    sealant_plan = Column(Float, default=0)
+    sealant_fact = Column(Float, default=0)
+    hermetic_plan = Column(Float, default=0)
+    hermetic_fact = Column(Float, default=0)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=func.now())
+
+    object = relationship("ConstructionObject")
