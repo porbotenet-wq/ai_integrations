@@ -2,19 +2,136 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Base ────────────────────────────────────────────── */
 body {
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--tg-theme-bg-color, #000000);
-  color: var(--tg-theme-text-color, #ffffff);
+  background: var(--tg-theme-bg-color, #0a0a0f);
+  color: var(--tg-theme-text-color, #e8e8ed);
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 4px; }
+/* ─── Scrollbar ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--tg-theme-hint-color, #333); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
 
-/* Safe area padding for bottom nav */
+/* ─── Safe area ───────────────────────────────────────── */
 .pb-safe { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+
+/* ─── Design System: Architectural Cinema ─────────────── */
+
+/* Cards — concrete surface with subtle border */
+.card {
+  @apply bg-[#111118] border border-[#1e1e2a] rounded-2xl p-4;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.02);
+}
+
+.card:active {
+  @apply bg-[#16161f];
+}
+
+/* Section headers */
+.section-header {
+  @apply text-xs font-bold uppercase tracking-wider text-[#666680] px-4 py-2 mt-2;
+}
+
+/* ─── Status Badges ───────────────────────────────────── */
+.badge-green {
+  @apply text-[11px] font-semibold px-2.5 py-0.5 rounded-full;
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+}
+
+.badge-blue {
+  @apply text-[11px] font-semibold px-2.5 py-0.5 rounded-full;
+  background: rgba(96, 165, 250, 0.12);
+  color: #60a5fa;
+}
+
+.badge-yellow {
+  @apply text-[11px] font-semibold px-2.5 py-0.5 rounded-full;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+}
+
+.badge-red {
+  @apply text-[11px] font-semibold px-2.5 py-0.5 rounded-full;
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+
+.badge-gray {
+  @apply text-[11px] font-semibold px-2.5 py-0.5 rounded-full;
+  background: rgba(156, 163, 175, 0.1);
+  color: #9ca3af;
+}
+
+/* ─── Status Colors ───────────────────────────────────── */
+.text-status-blue { color: #60a5fa; }
+.text-status-green { color: #34d399; }
+.text-status-yellow { color: #fbbf24; }
+.text-status-red { color: #f87171; }
+.text-status-orange { color: #fb923c; }
+
+.bg-status-blue { background: #60a5fa; }
+.bg-status-green { background: #34d399; }
+.bg-status-yellow { background: #fbbf24; }
+.bg-status-red { background: #f87171; }
+
+/* ─── Skeleton Loading ────────────────────────────────── */
+.skeleton {
+  @apply rounded-2xl;
+  background: linear-gradient(90deg, #111118 25%, #1a1a24 50%, #111118 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Touch targets ───────────────────────────────────── */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ─── Typography ──────────────────────────────────────── */
+.text-2xs {
+  font-size: 10px;
+  line-height: 14px;
+}
+
+/* ─── LED Accent Line ─────────────────────────────────── */
+.led-accent {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #60a5fa, transparent);
+  opacity: 0.4;
+}
+
+/* ─── Glassmorphism card variant ──────────────────────── */
+.card-glass {
+  @apply rounded-2xl p-4;
+  background: rgba(17, 17, 24, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ─── Progress bar glow ───────────────────────────────── */
+.progress-glow {
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.3);
+}
+
+/* ─── Animations ──────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}

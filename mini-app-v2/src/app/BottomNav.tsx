@@ -15,31 +15,42 @@ export function BottomNav() {
   const unread = summary?.total_unread || 0;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-tg-secondary-bg border-t border-tg-separator z-50"
+    <nav className="fixed bottom-0 left-0 right-0 z-50"
          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-      <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
-        {tabs.map(({ path, icon: Icon, label }) => {
-          const active = path === "/" ? pathname === "/" : pathname.startsWith(path);
-          const showBadge = path === "/notifications" && unread > 0;
+      {/* LED accent line */}
+      <div className="led-accent" />
+      <div className="bg-surface-1/95 backdrop-blur-xl border-t border-surface-3">
+        <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
+          {tabs.map(({ path, icon: Icon, label }) => {
+            const active = path === "/" ? pathname === "/" : pathname.startsWith(path);
+            const showBadge = path === "/notifications" && unread > 0;
 
-          return (
-            <button
-              key={path}
-              onClick={() => navigate(path)}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1 relative transition-colors ${
-                active ? "text-tg-button" : "text-tg-hint"
-              }`}
-            >
-              <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
-              <span className="text-[10px] font-medium">{label}</span>
-              {showBadge && (
-                <span className="absolute -top-0.5 right-2 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                  {unread > 99 ? "99+" : unread}
+            return (
+              <button
+                key={path}
+                onClick={() => navigate(path)}
+                className={`flex flex-col items-center gap-0.5 px-6 py-2 relative transition-all duration-200 touch-target ${
+                  active ? "text-status-blue" : "text-tg-hint"
+                }`}
+              >
+                <div className="relative">
+                  <Icon size={22} strokeWidth={active ? 2.2 : 1.6} />
+                  {active && (
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-status-blue" />
+                  )}
+                  {showBadge && (
+                    <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-status-red text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                </div>
+                <span className={`text-[10px] transition-all ${active ? "font-semibold" : "font-medium"}`}>
+                  {label}
                 </span>
-              )}
-            </button>
-          );
-        })}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );
