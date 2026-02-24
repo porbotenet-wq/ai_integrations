@@ -59,3 +59,15 @@ class DefectForm(StatesGroup):
 
 class BlockedForm(StatesGroup):
     reason = State()
+
+
+class FactForm(StatesGroup):
+    """Ввод факта выполнения работ (прораб)"""
+    select_object = State()
+    select_work_type = State()
+    select_floor = State()
+    select_facade = State()
+    enter_volume = State()
+    enter_workers = State()
+    enter_notes = State()
+    confirm = State()

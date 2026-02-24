@@ -3,7 +3,7 @@
  * Заменяет прямые вызовы Supabase на наш API
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://164.90.238.236:8000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 let sessionToken: string | null = localStorage.getItem('sfera_token');
 

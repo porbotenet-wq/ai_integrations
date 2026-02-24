@@ -9,7 +9,7 @@ from bot.db.session import init_db
 from bot.middlewares.auth import AuthMiddleware
 from bot.middlewares.throttling import ThrottlingMiddleware
 
-from bot.handlers import start, objects, tasks, gpr, supply, construction, notifications, admin
+from bot.handlers import start, objects, tasks, gpr, supply, construction, notifications, admin, fact
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,11 +49,13 @@ async def main():
     dp.include_router(construction.router)
     dp.include_router(notifications.router)
     dp.include_router(admin.router)
+    dp.include_router(fact.router)
 
     # Set bot commands
     from aiogram.types import BotCommand
     await bot.set_my_commands([
         BotCommand(command="start", description="Главное меню"),
+        BotCommand(command="fact", description="Ввод факта выполнения"),
         BotCommand(command="admin", description="Админ-панель"),
         BotCommand(command="viewas", description="Просмотр от лица роли"),
         BotCommand(command="newobject", description="Создать объект"),
