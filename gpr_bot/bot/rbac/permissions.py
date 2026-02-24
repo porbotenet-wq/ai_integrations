@@ -5,7 +5,7 @@ from bot.db.models import UserRole, Department
 PERMISSIONS = {
     # Object permissions
     "object.create":    {UserRole.ADMIN, UserRole.PROJECT_MANAGER, UserRole.CONTRACT},
-    "object.view_all":  {UserRole.ADMIN, UserRole.PROJECT_MANAGER},
+    "object.view_all":  {UserRole.ADMIN, UserRole.PROJECT_MANAGER, UserRole.DIRECTOR, UserRole.CURATOR},
     "object.edit":      {UserRole.ADMIN, UserRole.PROJECT_MANAGER},
     "object.delete":    {UserRole.ADMIN},
 
@@ -54,7 +54,19 @@ PERMISSIONS = {
     "admin.view_audit":    {UserRole.ADMIN, UserRole.PROJECT_MANAGER},
 
     # Dashboard
-    "dashboard.view":   {UserRole.ADMIN, UserRole.PROJECT_MANAGER, UserRole.CONTRACT},
+    "dashboard.view":   {UserRole.ADMIN, UserRole.PROJECT_MANAGER, UserRole.CONTRACT, UserRole.DIRECTOR, UserRole.CURATOR},
+
+    # Production & warehouse
+    "production.plan":     {UserRole.ADMIN, UserRole.PRODUCTION, UserRole.PROJECT_MANAGER},
+    "production.report":   {UserRole.ADMIN, UserRole.PRODUCTION},
+    "warehouse.view":      {UserRole.ADMIN, UserRole.PRODUCTION, UserRole.SUPPLY, UserRole.PROJECT_MANAGER},
+    "warehouse.manage":    {UserRole.ADMIN, UserRole.PRODUCTION, UserRole.SUPPLY},
+    "shipment.create":     {UserRole.ADMIN, UserRole.SUPPLY, UserRole.PRODUCTION},
+    "shipment.view":       set(UserRole) - {UserRole.VIEWER},
+    "bom.create":          {UserRole.ADMIN, UserRole.DESIGNER_KM, UserRole.DESIGNER_KMD, UserRole.DESIGN_HEAD},
+    "bom.view":            set(UserRole) - {UserRole.VIEWER},
+    "zone.manage":         {UserRole.ADMIN, UserRole.PROJECT_MANAGER, UserRole.PTO},
+    "material.manage":     {UserRole.ADMIN, UserRole.SUPPLY},
 }
 
 # ─── ROLE → DEPARTMENT MAPPING ───────────────────────────
@@ -71,6 +83,10 @@ ROLE_DEPARTMENT = {
     UserRole.CONSTRUCTION_ITR: Department.CONSTRUCTION,
     UserRole.SAFETY: Department.SAFETY,
     UserRole.PTO: Department.PTO,
+    UserRole.DIRECTOR: Department.TECHNICAL,
+    UserRole.CURATOR: Department.TECHNICAL,
+    UserRole.GEODESIST: Department.CONSTRUCTION,
+    UserRole.INSTALLER: Department.CONSTRUCTION,
 }
 
 # ─── ROLE DISPLAY NAMES (RU) ────────────────────────────
@@ -89,6 +105,10 @@ ROLE_NAMES = {
     UserRole.PTO: "Отдел ПТО",
     UserRole.CONTRACT: "Договорной отдел",
     UserRole.VIEWER: "Наблюдатель",
+    UserRole.DIRECTOR: "Генеральный директор",
+    UserRole.CURATOR: "Куратор",
+    UserRole.GEODESIST: "Геодезист",
+    UserRole.INSTALLER: "Монтажник",
 }
 
 DEPARTMENT_NAMES = {

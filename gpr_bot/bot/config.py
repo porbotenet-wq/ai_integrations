@@ -4,10 +4,10 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     bot_token: str
-    webapp_url: str = ""
+    webapp_url: str = "https://smr-sfera.lovable.app"
 
-    database_url: str = "postgresql+asyncpg://gpr_user:gpr_pass@localhost:5432/gpr_bot"
-    database_url_sync: str = "postgresql://gpr_user:gpr_pass@localhost:5432/gpr_bot"
+    database_url: str = "postgresql+asyncpg://postgres.fbcoqozxbmrrjpssrdld:THvIG9Zjk9MND8c@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+    database_url_sync: str = "postgresql://postgres.fbcoqozxbmrrjpssrdld:THvIG9Zjk9MND8c@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
 
     redis_url: str = "redis://localhost:6379/0"
 

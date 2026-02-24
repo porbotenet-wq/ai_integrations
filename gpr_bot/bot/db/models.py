@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, date
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Text, DateTime, Date, Boolean,
-    ForeignKey, Enum, Float, JSON, UniqueConstraint, Index, func
+    ForeignKey, Enum, Float, JSON, JSONB, UniqueConstraint, Index, func
 )
 from sqlalchemy.orm import relationship, DeclarativeBase
 
@@ -34,18 +34,23 @@ class TaskStatus(str, enum.Enum):
 
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
-    PROJECT_MANAGER = "project_manager"          # Руководитель проекта
-    DESIGN_HEAD = "design_head"                  # Рук. проектного отдела
-    DESIGNER_OPR = "designer_opr"                # Конструктор ОПР
-    DESIGNER_KM = "designer_km"                  # Конструктор КМ
-    DESIGNER_KMD = "designer_kmd"                # Конструктор КМД
-    SUPPLY = "supply"                            # Отдел снабжения
-    PRODUCTION = "production"                    # Производственный отдел
-    CONSTRUCTION_ITR = "construction_itr"         # ИТР / Прораб
-    SAFETY = "safety"                            # Охрана труда
-    PTO = "pto"                                  # Отдел ПТО
-    CONTRACT = "contract"                        # Договорной отдел
+    PROJECT_MANAGER = "project_manager"
+    DESIGN_HEAD = "design_head"
+    DESIGNER_OPR = "designer_opr"
+    DESIGNER_KM = "designer_km"
+    DESIGNER_KMD = "designer_kmd"
+    SUPPLY = "supply"
+    PRODUCTION = "production"
+    CONSTRUCTION_ITR = "construction_itr"
+    SAFETY = "safety"
+    PTO = "pto"
+    CONTRACT = "contract"
     VIEWER = "viewer"
+    # New roles from Excel (Лист 3)
+    DIRECTOR = "director"
+    CURATOR = "curator"
+    GEODESIST = "geodesist"
+    INSTALLER = "installer"
 
 
 class Department(str, enum.Enum):
@@ -99,7 +104,24 @@ class NotificationType(str, enum.Enum):
     GENERAL = "general"
 
 
-# ─── MODELS ──────────────────────────────────────────────
+class ElementStatusEnum(str, enum.Enum):
+    DESIGN = "design"
+    PRODUCTION_QUEUE = "production_queue"
+    IN_PRODUCTION = "in_production"
+    QUALITY_CHECK = "quality_check"
+    WAREHOUSE = "warehouse"
+    SHIPPED = "shipped"
+    INSTALLED = "installed"
+
+
+class BOMStatus(str, enum.Enum):
+    DRAFT = "draft"
+    APPROVED = "approved"
+    IN_PRODUCTION = "in_production"
+    COMPLETED = "completed"
+
+
+# ─── CORE MODELS ─────────────────────────────────────────
 
 class User(Base):
     __tablename__ = "users"
@@ -109,8 +131,8 @@ class User(Base):
     username = Column(String(255))
     full_name = Column(String(255), nullable=False)
     phone = Column(String(50))
-    role = Column(Enum(UserRole), nullable=False, default=UserRole.VIEWER)
-    department = Column(Enum(Department))
+    role = Column(Enum(UserRole, name="user_role", create_type=False), nullable=False, default=UserRole.VIEWER)
+    department = Column(Enum(Department, name="department", create_type=False))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
 
@@ -126,10 +148,13 @@ class ConstructionObject(Base):
     name = Column(String(500), nullable=False)
     city = Column(String(255))
     address = Column(Text)
+    facade_type = Column(String(50), default="СПК")
+    total_volume = Column(String(100))
     contract_date = Column(Date)
     deadline_date = Column(Date)
     budget = Column(Float)
-    status = Column(Enum(ObjectStatus), default=ObjectStatus.DRAFT, nullable=False)
+    status = Column(Enum(ObjectStatus, name="object_status", create_type=False), default=ObjectStatus.DRAFT, nullable=False)
+    responsible_pm_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -139,6 +164,8 @@ class ConstructionObject(Base):
     supply_orders = relationship("SupplyOrder", back_populates="object")
     construction_stages = relationship("ConstructionStage", back_populates="object")
     documents = relationship("Document", back_populates="object")
+    zones = relationship("Zone", back_populates="object")
+    shipments = relationship("Shipment", back_populates="object")
 
 
 class ObjectRole(Base):
@@ -150,7 +177,7 @@ class ObjectRole(Base):
     id = Column(Integer, primary_key=True)
     object_id = Column(Integer, ForeignKey("objects.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    role = Column(Enum(UserRole), nullable=False)
+    role = Column(Enum(UserRole, name="user_role", create_type=False), nullable=False)
     assigned_at = Column(DateTime, default=func.now())
 
     object = relationship("ConstructionObject", back_populates="roles")
@@ -163,7 +190,7 @@ class GPR(Base):
     id = Column(Integer, primary_key=True)
     object_id = Column(Integer, ForeignKey("objects.id", ondelete="CASCADE"), unique=True, nullable=False)
     version = Column(Integer, default=1)
-    status = Column(Enum(GPRStatus), default=GPRStatus.DRAFT)
+    status = Column(Enum(GPRStatus, name="gpr_status", create_type=False), default=GPRStatus.DRAFT)
     created_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -178,9 +205,10 @@ class GPRItem(Base):
 
     id = Column(Integer, primary_key=True)
     gpr_id = Column(Integer, ForeignKey("gprs.id", ondelete="CASCADE"), nullable=False)
-    department = Column(Enum(Department), nullable=False)
+    department = Column(Enum(Department, name="department", create_type=False), nullable=False)
     title = Column(String(500), nullable=False)
     unit = Column(String(50))
+    volume = Column(Float)
     responsible = Column(String(255))
     start_date = Column(Date)
     end_date = Column(Date)
@@ -191,6 +219,7 @@ class GPRItem(Base):
 
     gpr = relationship("GPR", back_populates="items")
     task = relationship("Task", back_populates="gpr_item", uselist=False)
+    daily_plan_facts = relationship("DailyPlanFact", back_populates="gpr_item")
 
 
 class GPRSignature(Base):
@@ -202,7 +231,7 @@ class GPRSignature(Base):
     id = Column(Integer, primary_key=True)
     gpr_id = Column(Integer, ForeignKey("gprs.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    department = Column(Enum(Department))
+    department = Column(Enum(Department, name="department", create_type=False))
     signed = Column(Boolean, default=False)
     signed_at = Column(DateTime)
     comment = Column(Text)
@@ -219,11 +248,11 @@ class Task(Base):
     gpr_item_id = Column(Integer, ForeignKey("gpr_items.id"), nullable=True)
     title = Column(String(500), nullable=False)
     description = Column(Text)
-    department = Column(Enum(Department), nullable=False)
+    department = Column(Enum(Department, name="department", create_type=False), nullable=False)
     assignee_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    status = Column(Enum(TaskStatus), default=TaskStatus.NEW, nullable=False)
-    priority = Column(Integer, default=0)  # 0=normal, 1=high, 2=critical
+    status = Column(Enum(TaskStatus, name="task_status", create_type=False), default=TaskStatus.NEW, nullable=False)
+    priority = Column(Integer, default=0)
     deadline = Column(Date)
     completed_at = Column(DateTime)
     blocked_reason = Column(Text)
@@ -263,11 +292,11 @@ class SupplyOrder(Base):
     material_name = Column(String(500), nullable=False)
     quantity = Column(Float)
     unit = Column(String(50))
-    status = Column(Enum(SupplyStatus), default=SupplyStatus.REQUESTED)
+    status = Column(Enum(SupplyStatus, name="supply_status", create_type=False), default=SupplyStatus.REQUESTED)
     supplier = Column(String(255))
     expected_date = Column(Date)
     actual_date = Column(Date)
-    delivery_location = Column(String(255))  # объект / производство
+    delivery_location = Column(String(255))
     created_by_id = Column(Integer, ForeignKey("users.id"))
     approved_by_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=func.now())
@@ -285,7 +314,7 @@ class ConstructionStage(Base):
     object_id = Column(Integer, ForeignKey("objects.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     sort_order = Column(Integer, default=0)
-    status = Column(Enum(ConstructionStageStatus), default=ConstructionStageStatus.PENDING)
+    status = Column(Enum(ConstructionStageStatus, name="construction_stage_status", create_type=False), default=ConstructionStageStatus.PENDING)
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
     accepted_by_id = Column(Integer, ForeignKey("users.id"))
@@ -316,7 +345,7 @@ class Document(Base):
     id = Column(Integer, primary_key=True)
     object_id = Column(Integer, ForeignKey("objects.id", ondelete="CASCADE"), nullable=False)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
-    doc_type = Column(String(50), nullable=False)  # tz, aosr, kmd, m15, ttn, etc.
+    doc_type = Column(String(50), nullable=False)
     title = Column(String(500), nullable=False)
     file_url = Column(String(1000))
     version = Column(Integer, default=1)
@@ -332,10 +361,10 @@ class Notification(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    type = Column(Enum(NotificationType), nullable=False)
+    type = Column(Enum(NotificationType, name="notification_type", create_type=False), nullable=False)
     title = Column(String(500), nullable=False)
     text = Column(Text)
-    entity_type = Column(String(50))  # task, object, gpr, supply
+    entity_type = Column(String(50))
     entity_id = Column(Integer)
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
@@ -351,8 +380,8 @@ class AuditLog(Base):
     action = Column(String(100), nullable=False)
     entity_type = Column(String(50), nullable=False)
     entity_id = Column(Integer)
-    old_value = Column(JSON)
-    new_value = Column(JSON)
+    old_value = Column(JSONB)
+    new_value = Column(JSONB)
     ip_address = Column(String(50))
     created_at = Column(DateTime, default=func.now())
 
@@ -360,3 +389,162 @@ class AuditLog(Base):
         Index("ix_audit_entity", "entity_type", "entity_id"),
         Index("ix_audit_user_date", "user_id", "created_at"),
     )
+
+
+# ─── EXCEL MODELS (Листы 5-12) ──────────────────────────
+
+class Zone(Base):
+    """Лист 5: Зоны/Этапы объекта"""
+    __tablename__ = "zones"
+
+    id = Column(Integer, primary_key=True)
+    object_id = Column(Integer, ForeignKey("objects.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(500), nullable=False)
+    floor_axis = Column(String(255))
+    system_type = Column(String(100))
+    volume = Column(Float)
+    priority = Column(Integer, default=0)
+    production_start_date = Column(Date)
+    delivery_date = Column(Date)
+    created_at = Column(DateTime, default=func.now())
+
+    object = relationship("ConstructionObject", back_populates="zones")
+    bom_items = relationship("BOMItem", back_populates="zone")
+    shipments = relationship("Shipment", back_populates="zone")
+
+
+class BOMItem(Base):
+    """Лист 6: Спецификация (Bill of Materials)"""
+    __tablename__ = "bom_items"
+
+    id = Column(Integer, primary_key=True)
+    zone_id = Column(Integer, ForeignKey("zones.id", ondelete="CASCADE"), nullable=False)
+    mark = Column(String(255), nullable=False)
+    item_type = Column(String(255))
+    material = Column(String(255))
+    quantity = Column(Float)
+    weight = Column(Float)
+    labor_norm = Column(Float)
+    status = Column(Enum(BOMStatus, name="bom_status", create_type=False), default=BOMStatus.DRAFT)
+    created_at = Column(DateTime, default=func.now())
+
+    zone = relationship("Zone", back_populates="bom_items")
+    element_status = relationship("ElementStatus", back_populates="bom_item", uselist=False)
+    warehouse = relationship("Warehouse", back_populates="bom_item", uselist=False)
+    production_plans = relationship("ProductionPlan", back_populates="bom_item")
+
+
+class Material(Base):
+    """Лист 7: Материалы"""
+    __tablename__ = "materials"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(100), unique=True, nullable=False)
+    name = Column(String(500), nullable=False)
+    type = Column(String(100))
+    unit = Column(String(50))
+    object_demand = Column(Float, default=0)
+    purchased = Column(Float, default=0)
+    in_stock = Column(Float, default=0)
+    in_production = Column(Float, default=0)
+    deficit = Column(Float, default=0)
+    updated_at = Column(DateTime, default=func.now())
+
+
+class ProductionPlan(Base):
+    """Лист 8: План производства"""
+    __tablename__ = "production_plan"
+
+    id = Column(Integer, primary_key=True)
+    date = Column(Date, nullable=False)
+    workshop = Column(String(100))
+    line = Column(String(100))
+    bom_item_id = Column(Integer, ForeignKey("bom_items.id"))
+    gpr_item_id = Column(Integer, ForeignKey("gpr_items.id"))
+    plan_qty = Column(Float, default=0)
+    fact_qty = Column(Float, default=0)
+    deviation = Column(Float, default=0)
+    completion_pct = Column(Float, default=0)
+    master_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=func.now())
+
+    bom_item = relationship("BOMItem", back_populates="production_plans")
+    gpr_item = relationship("GPRItem")
+    master = relationship("User")
+
+
+class ElementStatus(Base):
+    """Лист 9: Статус элементов"""
+    __tablename__ = "element_status"
+
+    id = Column(Integer, primary_key=True)
+    bom_item_id = Column(Integer, ForeignKey("bom_items.id", ondelete="CASCADE"), nullable=False)
+    status = Column(Enum(ElementStatusEnum, name="element_status_enum", create_type=False), default=ElementStatusEnum.DESIGN)
+    stage_date = Column(DateTime, default=func.now())
+    time_norm = Column(Float)
+    time_fact = Column(Float)
+    defect_count = Column(Integer, default=0)
+    comment = Column(Text)
+    plan_daily = Column(Float, default=0)
+    fact_daily = Column(Float, default=0)
+    deviation = Column(Float, default=0)
+    completion_pct = Column(Float, default=0)
+
+    bom_item = relationship("BOMItem", back_populates="element_status")
+
+
+class Warehouse(Base):
+    """Лист 10: Склад готовой продукции"""
+    __tablename__ = "warehouse"
+
+    id = Column(Integer, primary_key=True)
+    bom_item_id = Column(Integer, ForeignKey("bom_items.id", ondelete="CASCADE"), nullable=False)
+    produced_qty = Column(Float, default=0)
+    shipped_qty = Column(Float, default=0)
+    remaining = Column(Float, default=0)
+    ready_date = Column(Date)
+    ready_to_ship = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=func.now())
+
+    bom_item = relationship("BOMItem", back_populates="warehouse")
+
+
+class Shipment(Base):
+    """Лист 11: Отгрузка"""
+    __tablename__ = "shipments"
+
+    id = Column(Integer, primary_key=True)
+    batch_number = Column(String(100))
+    object_id = Column(Integer, ForeignKey("objects.id", ondelete="CASCADE"), nullable=False)
+    zone_id = Column(Integer, ForeignKey("zones.id"))
+    ship_date = Column(Date)
+    items_list = Column(Text)
+    quantity = Column(Float)
+    vehicle = Column(String(255))
+    responsible_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=func.now())
+
+    object = relationship("ConstructionObject", back_populates="shipments")
+    zone = relationship("Zone", back_populates="shipments")
+    responsible = relationship("User")
+
+
+class DailyPlanFact(Base):
+    """Лист 12: План/Факт работ (ежедневный)"""
+    __tablename__ = "daily_plan_fact"
+
+    id = Column(Integer, primary_key=True)
+    gpr_item_id = Column(Integer, ForeignKey("gpr_items.id", ondelete="CASCADE"), nullable=False)
+    date = Column(Date, nullable=False)
+    work_name = Column(String(500))
+    fact_volume = Column(Float, default=0)
+    unit = Column(String(50))
+    notes = Column(Text)
+    plan_daily = Column(Float, default=0)
+    deviation = Column(Float, default=0)
+    completion_pct = Column(Float, default=0)
+    executor_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=func.now())
+
+    gpr_item = relationship("GPRItem", back_populates="daily_plan_facts")
+    executor = relationship("User")
