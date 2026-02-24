@@ -92,3 +92,9 @@ def object_card_text(obj, tasks_done: int = 0, tasks_total: int = 0, overdue: in
         f"✅ {tasks_done}/{tasks_total} задач{overdue_line}\n"
         f"{deadline}"
     )
+
+
+# Backward compat alias
+def main_menu_keyboard(role: UserRole, unread_count: int = 0):
+    """Legacy alias → returns inline keyboard"""
+    return main_menu_inline(role, unread_count)
