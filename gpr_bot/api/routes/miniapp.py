@@ -56,6 +56,22 @@ def register_miniapp_routes(app: FastAPI):
 
     async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
         auth = request.headers.get("Authorization", "")
+
+        # Bearer JWT (from our auth endpoint)
+        if auth.startswith("Bearer "):
+            import jwt
+            from bot.config import get_settings
+            settings = get_settings()
+            try:
+                payload = jwt.decode(auth[7:], settings.api_secret_key, algorithms=["HS256"])
+                result = await db.execute(select(User).where(User.id == payload["sub"]))
+                user = result.scalar_one_or_none()
+                if user:
+                    return user
+            except Exception:
+                pass
+
+        # Telegram Mini App initData
         if auth.startswith("tma "):
             data = verify_init_data(auth[4:])
             if data and "user" in data:
