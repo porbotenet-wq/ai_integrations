@@ -1,18 +1,29 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import type { Document, DocumentFolder } from "@/types/database";
 
-export function useDocumentFolders(projectId: string) {
+export interface DocumentFolder {
+  id: string;
+  project_id: number;
+  name: string;
+  sort_order: number;
+}
+
+export interface Document {
+  id: string;
+  folder_id: string;
+  name: string;
+  file_url: string;
+  file_type: string;
+  size_bytes: number;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+export function useDocumentFolders(projectId: string | number) {
   return useQuery({
     queryKey: ["doc-folders", projectId],
     queryFn: async (): Promise<DocumentFolder[]> => {
-      const { data, error } = await supabase
-        .from("document_folders")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("sort_order");
-      if (error) throw error;
-      return (data as DocumentFolder[]) || [];
+      // TODO: implement /api/documents/folders endpoint
+      return [];
     },
     enabled: !!projectId,
   });
@@ -22,14 +33,8 @@ export function useDocuments(folderId: string | null) {
   return useQuery({
     queryKey: ["documents", folderId],
     queryFn: async (): Promise<Document[]> => {
-      if (!folderId) return [];
-      const { data, error } = await supabase
-        .from("documents")
-        .select("*")
-        .eq("folder_id", folderId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data as Document[]) || [];
+      // TODO: implement /api/documents endpoint
+      return [];
     },
     enabled: !!folderId,
   });
@@ -38,9 +43,8 @@ export function useDocuments(folderId: string | null) {
 export function useCreateFolder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (folder: Partial<DocumentFolder>) => {
-      const { error } = await supabase.from("document_folders").insert(folder as any);
-      if (error) throw error;
+    mutationFn: async (_folder: Partial<DocumentFolder>) => {
+      throw new Error("Not implemented yet");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["doc-folders"] });

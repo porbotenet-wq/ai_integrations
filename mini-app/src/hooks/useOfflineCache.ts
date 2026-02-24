@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
 const DB_NAME = "stsphera-offline";
 const DB_VERSION = 1;
@@ -52,33 +53,27 @@ export function useOfflineCache() {
     };
   }, []);
 
-  const cacheProjectData = useCallback(async (projectId: string) => {
+  const cacheProjectData = useCallback(async (projectId: number) => {
     if (!navigator.onLine) return;
     try {
-      const { supabase } = await import("@/integrations/supabase/client");
-      const [proj, alerts, crews, mats, pf] = await Promise.all([
-        supabase.from("projects").select("*").eq("id", projectId).single(),
-        supabase.from("alerts").select("*").eq("project_id", projectId).limit(50),
-        supabase.from("crews").select("*").eq("project_id", projectId),
-        supabase.from("materials").select("*").eq("project_id", projectId),
-        supabase.from("plan_fact").select("*").eq("project_id", projectId).order("date", { ascending: false }).limit(30),
+      const [dashboard, crews, planFact] = await Promise.all([
+        api.getDashboard(projectId),
+        api.getCrews(projectId),
+        api.getPlanFact(projectId),
       ]);
       await setItem(`project:${projectId}`, {
-        project: proj.data,
-        alerts: alerts.data,
-        crews: crews.data,
-        materials: mats.data,
-        planFact: pf.data,
+        dashboard,
+        crews,
+        planFact,
       });
     } catch (e) {
       console.warn("Offline cache failed:", e);
     }
   }, []);
 
-  const getCachedProject = useCallback(async (projectId: string) => {
+  const getCachedProject = useCallback(async (projectId: number) => {
     try {
-      const result = await getItem<any>(`project:${projectId}`);
-      return result;
+      return await getItem<any>(`project:${projectId}`);
     } catch {
       return null;
     }

@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 export interface DailyLog {
   id: string;
-  project_id: string;
+  project_id: number;
   zone_name: string | null;
   date: string;
   works_description: string;
@@ -19,22 +19,31 @@ export interface DailyLog {
   created_at: string;
 }
 
-export function useDailyLogs(projectId: string, filters?: { status?: string; date?: string }) {
+export function useDailyLogs(projectId: string | number, filters?: { status?: string; date?: string }) {
+  const id = Number(projectId);
   return useQuery({
-    queryKey: ["daily-logs", projectId, filters],
+    queryKey: ["daily-logs", id, filters],
     queryFn: async (): Promise<DailyLog[]> => {
-      let query = (supabase.from("daily_logs" as any) as any)
-        .select("*")
-        .eq("project_id", projectId)
-        .order("date", { ascending: false })
-        .limit(50);
-
-      if (filters?.status) query = query.eq("status", filters.status);
-      if (filters?.date) query = query.eq("date", filters.date);
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data as DailyLog[]) || [];
+      // TODO: implement /api/daily-logs endpoint
+      // For now, map daily_progress data
+      const progress = await api.getDailyProgress(id);
+      return progress.map((p: any, i: number) => ({
+        id: String(i),
+        project_id: id,
+        zone_name: null,
+        date: p.date,
+        works_description: `Модули: ${p.modules_fact}, Кронштейны: ${p.brackets_fact}`,
+        volume: String(p.modules_fact),
+        workers_count: null,
+        issues_description: null,
+        weather: null,
+        status: "approved" as const,
+        submitted_by: null,
+        reviewed_by: null,
+        review_comment: null,
+        photo_urls: [],
+        created_at: p.date,
+      }));
     },
     enabled: !!projectId,
   });
@@ -43,20 +52,12 @@ export function useDailyLogs(projectId: string, filters?: { status?: string; dat
 export function useCreateDailyLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (log: Partial<DailyLog> & { project_id: string; works_description: string }) => {
-      const { data, error } = await (supabase.from("daily_logs" as any) as any)
-        .insert({
-          ...log,
-          status: "draft",
-          date: log.date || new Date().toISOString().split("T")[0],
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return data;
+    mutationFn: async (_log: Partial<DailyLog>) => {
+      // TODO: implement POST /api/daily-logs
+      throw new Error("Not implemented yet");
     },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["daily-logs", vars.project_id] });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["daily-logs"] });
     },
   });
 }
@@ -64,15 +65,11 @@ export function useCreateDailyLog() {
 export function useSubmitDailyLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, projectId }: { id: string; projectId: string }) => {
-      const { error } = await (supabase.from("daily_logs" as any) as any)
-        .update({ status: "submitted", updated_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
-      return { id, projectId };
+    mutationFn: async (_params: { id: string; projectId: string }) => {
+      throw new Error("Not implemented yet");
     },
-    onSuccess: (vars) => {
-      qc.invalidateQueries({ queryKey: ["daily-logs", vars.projectId] });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["daily-logs"] });
     },
   });
 }
@@ -80,31 +77,11 @@ export function useSubmitDailyLog() {
 export function useReviewDailyLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      id,
-      projectId,
-      decision,
-      comment,
-    }: {
-      id: string;
-      projectId: string;
-      decision: "approved" | "rejected";
-      comment?: string;
-    }) => {
-      const { data: session } = await supabase.auth.getSession();
-      const { error } = await (supabase.from("daily_logs" as any) as any)
-        .update({
-          status: decision,
-          reviewed_by: session?.session?.user?.id || null,
-          review_comment: comment || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-      if (error) throw error;
-      return { id, projectId };
+    mutationFn: async (_params: { id: string; projectId: string; decision: "approved" | "rejected"; comment?: string }) => {
+      throw new Error("Not implemented yet");
     },
-    onSuccess: (vars) => {
-      qc.invalidateQueries({ queryKey: ["daily-logs", vars.projectId] });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["daily-logs"] });
     },
   });
 }
