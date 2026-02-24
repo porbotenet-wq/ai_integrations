@@ -64,7 +64,8 @@ def register_miniapp_routes(app: FastAPI):
             settings = get_settings()
             try:
                 payload = jwt.decode(auth[7:], settings.api_secret_key, algorithms=["HS256"])
-                result = await db.execute(select(User).where(User.id == payload["sub"]))
+                user_id = int(payload["sub"])
+                result = await db.execute(select(User).where(User.id == user_id))
                 user = result.scalar_one_or_none()
                 if user:
                     return user

@@ -69,7 +69,7 @@ def verify_init_data(init_data: str, bot_token: str) -> dict | None:
 
 def make_jwt(user_id: int, telegram_id: int, role: str) -> str:
     payload = {
-        "sub": user_id,
+        "sub": str(user_id),
         "tg": telegram_id,
         "role": role,
         "exp": int(time.time()) + JWT_EXP,
