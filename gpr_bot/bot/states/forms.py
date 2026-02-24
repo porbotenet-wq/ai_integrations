@@ -24,6 +24,8 @@ class CreateTaskForm(StatesGroup):
     assignee = State()
     deadline = State()
     confirm = State()
+    deadline = State()
+    confirm = State()
 
 
 class RescheduleForm(StatesGroup):
