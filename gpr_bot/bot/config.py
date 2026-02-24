@@ -20,6 +20,19 @@ class Settings(BaseSettings):
     s3_secret_key: str = "minioadmin"
     s3_bucket: str = "gpr-documents"
 
+    # Aliases for fact.py
+    @property
+    def minio_endpoint(self) -> str:
+        return self.s3_endpoint
+
+    @property
+    def minio_access_key(self) -> str:
+        return self.s3_access_key
+
+    @property
+    def minio_secret_key(self) -> str:
+        return self.s3_secret_key
+
     check_deadlines_interval: int = 3600
     digest_hour: int = 9
 

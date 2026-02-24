@@ -69,5 +69,6 @@ class FactForm(StatesGroup):
     select_facade = State()
     enter_volume = State()
     enter_workers = State()
+    upload_photos = State()
     enter_notes = State()
     confirm = State()

@@ -1,20 +1,62 @@
 """Handler: /fact — ввод факта выполнения работ (прораб, бригадир)"""
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from sqlalchemy import select, func
+from sqlalchemy import select
 from datetime import date
+import uuid
+import io
 
 from bot.states.forms import FactForm
 from bot.db.session import async_session
 from bot.db.models import (
-    ConstructionObject, ObjectStatus, WorkType, Crew,
+    ConstructionObject, ObjectStatus, WorkType,
     DailyPlanFact, ObjectRole, User,
 )
+from bot.config import get_settings
 
 router = Router()
+settings = get_settings()
+
+
+# ─── MinIO photo upload ─────────────────────────────────
+
+async def upload_photo_to_minio(bot: Bot, file_id: str, object_id: int) -> str | None:
+    """Download photo from Telegram, upload to MinIO, return URL"""
+    try:
+        import boto3
+        from botocore.config import Config as BotoConfig
+
+        file = await bot.get_file(file_id)
+        bio = io.BytesIO()
+        await bot.download_file(file.file_path, bio)
+        bio.seek(0)
+
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=settings.minio_endpoint or "http://minio:9000",
+            aws_access_key_id=settings.minio_access_key or "minioadmin",
+            aws_secret_access_key=settings.minio_secret_key or "minioadmin",
+            config=BotoConfig(signature_version="s3v4"),
+            region_name="us-east-1",
+        )
+
+        bucket = "fact-photos"
+        # Create bucket if not exists
+        try:
+            s3.head_bucket(Bucket=bucket)
+        except Exception:
+            s3.create_bucket(Bucket=bucket)
+
+        key = f"{object_id}/{date.today().isoformat()}/{uuid.uuid4().hex}.jpg"
+        s3.upload_fileobj(bio, bucket, key, ExtraArgs={"ContentType": "image/jpeg"})
+
+        return f"{settings.minio_endpoint or 'http://minio:9000'}/{bucket}/{key}"
+    except Exception as e:
+        print(f"MinIO upload error: {e}")
+        return None
 
 
 # ─── /fact ───────────────────────────────────────────────
@@ -23,7 +65,6 @@ router = Router()
 async def cmd_fact(message: Message, state: FSMContext):
     """Начало ввода факта"""
     async with async_session() as db:
-        # Найти пользователя
         result = await db.execute(
             select(User).where(User.telegram_id == message.from_user.id)
         )
@@ -32,7 +73,6 @@ async def cmd_fact(message: Message, state: FSMContext):
             await message.answer("❌ Вы не зарегистрированы в системе.")
             return
 
-        # Объекты пользователя (по object_roles или все для admin)
         if user.role.value == "admin":
             objs = (await db.execute(
                 select(ConstructionObject)
@@ -55,10 +95,9 @@ async def cmd_fact(message: Message, state: FSMContext):
             await message.answer("❌ Нет активных объектов.")
             return
 
-        await state.update_data(user_id=user.id)
+        await state.update_data(user_id=user.id, photos=[])
 
         if len(objs) == 1:
-            # Один объект — пропускаем выбор
             await state.update_data(object_id=objs[0].id, object_name=objs[0].name)
             await show_work_types(message, state)
             return
@@ -84,7 +123,6 @@ async def on_select_object(callback: CallbackQuery, state: FSMContext):
 
 
 async def show_work_types(message: Message, state: FSMContext):
-    """Показать виды работ"""
     async with async_session() as db:
         wts = (await db.execute(
             select(WorkType).order_by(WorkType.sequence_order)
@@ -173,7 +211,60 @@ async def on_workers(message: Message, state: FSMContext):
         workers = 0
 
     await state.update_data(workers_count=workers)
-    await message.answer("📝 Примечание (или - чтобы пропустить):")
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="⏭ Пропустить фото", callback_data="fact_skip_photo")
+    kb.adjust(1)
+
+    await message.answer(
+        "📸 Отправьте фото (можно несколько).\n"
+        "Когда закончите — нажмите «Пропустить» или «Готово».",
+        reply_markup=kb.as_markup(),
+    )
+    await state.set_state(FactForm.upload_photos)
+
+
+@router.message(FactForm.upload_photos, F.photo)
+async def on_photo(message: Message, state: FSMContext):
+    """Получение фото от прораба"""
+    data = await state.get_data()
+    photos = data.get("photos", [])
+
+    # Берём самое большое фото
+    photo = message.photo[-1]
+    photos.append(photo.file_id)
+    await state.update_data(photos=photos)
+
+    count = len(photos)
+    kb = InlineKeyboardBuilder()
+    kb.button(text=f"✅ Готово ({count} фото)", callback_data="fact_photos_done")
+    kb.button(text="➕ Ещё фото", callback_data="fact_more_photo")
+    kb.adjust(2)
+
+    await message.answer(
+        f"📸 Принято! Фото: {count}",
+        reply_markup=kb.as_markup(),
+    )
+
+
+@router.message(FactForm.upload_photos)
+async def on_photo_text(message: Message, state: FSMContext):
+    """Если прислали текст вместо фото"""
+    kb = InlineKeyboardBuilder()
+    kb.button(text="⏭ Пропустить фото", callback_data="fact_skip_photo")
+    kb.adjust(1)
+    await message.answer("❌ Отправьте фото или нажмите «Пропустить».", reply_markup=kb.as_markup())
+
+
+@router.callback_query(FactForm.upload_photos, F.data == "fact_more_photo")
+async def on_more_photo(callback: CallbackQuery, state: FSMContext):
+    await callback.answer("Отправьте ещё фото")
+
+
+@router.callback_query(FactForm.upload_photos, F.data.in_({"fact_skip_photo", "fact_photos_done"}))
+async def on_photos_done(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.answer("📝 Примечание (или - чтобы пропустить):")
     await state.set_state(FactForm.enter_notes)
 
 
@@ -185,8 +276,8 @@ async def on_notes(message: Message, state: FSMContext):
     await state.update_data(notes=notes)
 
     data = await state.get_data()
+    photo_count = len(data.get("photos", []))
 
-    # Подтверждение
     text = (
         f"📋 <b>Подтверждение факта</b>\n\n"
         f"🏗 Объект: {data.get('object_name')}\n"
@@ -195,6 +286,7 @@ async def on_notes(message: Message, state: FSMContext):
         f"🧭 Фасад: {data.get('facade')}\n"
         f"📊 Объём: {data.get('fact_volume')} {data.get('unit')}\n"
         f"👷 Рабочих: {data.get('workers_count')}\n"
+        f"📸 Фото: {photo_count}\n"
         f"📝 Примечание: {notes or '—'}\n"
         f"📅 Дата: {date.today().isoformat()}"
     )
@@ -209,8 +301,18 @@ async def on_notes(message: Message, state: FSMContext):
 
 
 @router.callback_query(FactForm.confirm, F.data == "fact_save")
-async def on_save(callback: CallbackQuery, state: FSMContext):
+async def on_save(callback: CallbackQuery, state: FSMContext, bot: Bot):
     data = await state.get_data()
+    photos = data.get("photos", [])
+    photo_urls = []
+
+    # Upload photos to MinIO
+    if photos:
+        await callback.message.edit_text("⏳ Загрузка фото...")
+        for file_id in photos:
+            url = await upload_photo_to_minio(bot, file_id, data["object_id"])
+            if url:
+                photo_urls.append(url)
 
     async with async_session() as db:
         record = DailyPlanFact(
@@ -227,12 +329,23 @@ async def on_save(callback: CallbackQuery, state: FSMContext):
             notes=data.get("notes"),
             executor_id=data.get("user_id"),
         )
+        # Store photo URLs in notes as JSON appendix if photos exist
+        if photo_urls:
+            existing_notes = record.notes or ""
+            record.notes = f"{existing_notes}\n[ФОТО: {', '.join(photo_urls)}]".strip()
         db.add(record)
         await db.commit()
 
+    photo_line = f"\n📸 Загружено фото: {len(photo_urls)}" if photo_urls else ""
     await callback.answer("✅ Сохранено!")
     await callback.message.edit_text(
-        callback.message.text + "\n\n✅ <b>Записано в систему</b>",
+        f"📋 <b>Факт записан</b>\n\n"
+        f"🏗 {data.get('object_name')}\n"
+        f"🔧 {data.get('work_code')} — {data.get('work_name')}\n"
+        f"🏢 Этаж {data.get('floor')}, {data.get('facade')}\n"
+        f"📊 {data.get('fact_volume')} {data.get('unit')}\n"
+        f"👷 {data.get('workers_count')} чел.{photo_line}\n\n"
+        f"✅ <b>Записано в систему</b>",
         parse_mode="HTML",
     )
     await state.clear()
