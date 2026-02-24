@@ -2,8 +2,9 @@ import enum
 from datetime import datetime, date
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Text, DateTime, Date, Boolean,
-    ForeignKey, Enum, Float, JSON, JSONB, UniqueConstraint, Index, func
+    ForeignKey, Enum, Float, JSON, UniqueConstraint, Index, func
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, DeclarativeBase
 
 
