@@ -7,3 +7,4 @@ __pycache__/
 *.pyc
 .venv/
 *.egg-info/
+gpr_bot/google-sa.json
