@@ -1,0 +1,40 @@
+project_id = "jdnqaxldwyembanatnqd"
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.norm-search]
+verify_jwt = false
+
+[functions.telegram-notify]
+verify_jwt = false
+
+[functions.telegram-bot-webhook]
+verify_jwt = false
+
+[functions.telegram-scheduler]
+verify_jwt = false
+
+[functions.telegram-manage]
+verify_jwt = false
+
+[functions.telegram-bot]
+verify_jwt = false
+
+[functions.sync-1c]
+verify_jwt = false
+
+[functions.bot-whitelabel]
+verify_jwt = false
+
+[functions.bot-notify]
+verify_jwt = false
+
+[functions.bot-notify-worker]
+verify_jwt = false
+
+[functions.bot-scheduler]
+verify_jwt = false
+
+[functions.generate-document]
+verify_jwt = false

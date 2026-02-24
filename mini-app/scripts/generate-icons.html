@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head><title>STSphera Icon Generator</title></head>
+<body style="background:#09090F;color:#fff;font-family:monospace;padding:20px">
+<h2>🏗️ STSphera PWA Icon Generator</h2>
+<p>Нажми кнопку — скачаются все иконки для папки /public/icons/</p>
+<button onclick="generate()" style="padding:12px 24px;background:#00D4A8;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-size:14px">
+  ⬇️ Генерировать и скачать иконки
+</button>
+<div id="log" style="margin-top:16px;font-size:12px;color:#aaa"></div>
+
+<canvas id="c" style="display:none"></canvas>
+
+<script>
+const SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
+
+function log(msg) {
+  document.getElementById("log").innerHTML += msg + "<br>";
+}
+
+function drawIcon(size) {
+  const canvas = document.getElementById("c");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  const r = size * 0.18;
+
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, "#0D1B2A");
+  grad.addColorStop(1, "#09090F");
+  ctx.fillStyle = grad;
+  roundRect(ctx, 0, 0, size, size, r);
+  ctx.fill();
+
+  // Primary glow
+  const glow = ctx.createRadialGradient(size/2, size*0.3, 0, size/2, size*0.3, size*0.5);
+  glow.addColorStop(0, "rgba(0,212,168,0.15)");
+  glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, size, size);
+
+  // Building silhouette
+  const sc = size / 100;
+  ctx.fillStyle = "rgba(0,212,168,0.15)";
+  ctx.fillRect(20*sc, 45*sc, 25*sc, 40*sc);
+  ctx.fillRect(55*sc, 30*sc, 25*sc, 55*sc);
+  ctx.fillStyle = "rgba(0,212,168,0.08)";
+  ctx.fillRect(30*sc, 55*sc, 15*sc, 30*sc);
+
+  // "S" letter
+  ctx.save();
+  ctx.font = `bold ${size * 0.52}px 'Arial', sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "#00D4A8";
+  ctx.shadowBlur = size * 0.08;
+
+  const textGrad = ctx.createLinearGradient(size*0.2, size*0.3, size*0.8, size*0.7);
+  textGrad.addColorStop(0, "#00D4A8");
+  textGrad.addColorStop(1, "#00A87A");
+  ctx.fillStyle = textGrad;
+  ctx.fillText("S", size/2, size/2 + size*0.02);
+  ctx.restore();
+
+  // Border
+  ctx.strokeStyle = "rgba(0,212,168,0.3)";
+  ctx.lineWidth = size * 0.015;
+  roundRect(ctx, size*0.01, size*0.01, size*0.98, size*0.98, r);
+  ctx.stroke();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function generate() {
+  log("Генерируем иконки...");
+  SIZES.forEach((size, i) => {
+    setTimeout(() => {
+      drawIcon(size);
+      const canvas = document.getElementById("c");
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `icon-${size}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log(`✅ icon-${size}.png`);
+      }, "image/png");
+    }, i * 150);
+  });
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,48 @@
+{
+  "name": "STSphera — Управление объектами",
+  "short_name": "STSphera",
+  "description": "Система управления строительными объектами: план-факт, алерты, бригады, снабжение",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#09090F",
+  "theme_color": "#00D4A8",
+  "lang": "ru",
+  "scope": "/",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-72.png",  "sizes": "72x72",   "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-152.png", "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Дашборд",
+      "short_name": "Дашборд",
+      "description": "Открыть дашборд проекта",
+      "url": "/?tab=dash",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Алерты",
+      "short_name": "Алерты",
+      "description": "Открыть список алертов",
+      "url": "/?tab=alerts",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Ежедневный отчёт",
+      "short_name": "Отчёт",
+      "description": "Заполнить ежедневный отчёт",
+      "url": "/?tab=report",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

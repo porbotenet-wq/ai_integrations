@@ -1,0 +1,68 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+.env.*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+.env.*.local
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+.env.*.local
+
+# Workspace files (not for repo)
+MEMORY.md
+SOUL.md
+USER.md
+IDENTITY.md
+AGENTS.md
+BOOTSTRAP.md
+HEARTBEAT.md
+TOOLS.md
+AUDIT_STSPHERA.md
+BOT-AUDIT.md
+LOVABLE-*.md
+PROJECT_SPEC*.md
+PROMPT-*.md
+ROADMAP.md
+TZ-*.md
+memory/
+media/
+.openclaw/
+sfera-*.html
+my-telegram-mini/
+normbase-parser/.env

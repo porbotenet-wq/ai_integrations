@@ -1,0 +1,177 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* MONOLITH v3.0 — Concrete & Light */
+
+    /* Surfaces (deep → surface) */
+    --background: 220 25% 4%;
+    --foreground: 220 14% 88%;
+    --card: 220 22% 8%;
+    --card-foreground: 220 14% 88%;
+    --popover: 220 20% 10%;
+    --popover-foreground: 220 14% 88%;
+
+    /* Signal: Primary = Green LED */
+    --primary: 158 100% 39%;
+    --primary-foreground: 220 25% 4%;
+
+    /* Layers */
+    --secondary: 220 18% 11%;
+    --secondary-foreground: 220 14% 88%;
+    --muted: 220 16% 10%;
+    --muted-foreground: 222 12% 48%;
+    --accent: 220 14% 14%;
+    --accent-foreground: 220 14% 88%;
+
+    /* Signals */
+    --destructive: 4 76% 52%;
+    --destructive-foreground: 0 0% 98%;
+    --warning: 36 88% 56%;
+    --warning-foreground: 220 25% 4%;
+    --info: 218 92% 62%;
+    --info-foreground: 220 25% 4%;
+
+    /* Infrastructure */
+    --border: 0 0% 100% / 0.06;
+    --input: 0 0% 100% / 0.06;
+    --ring: 158 100% 39%;
+    --radius: 12px;
+    --radius-sm: 6px;
+
+    /* MONOLITH surface tokens */
+    --bg0: 220 25% 4%;
+    --bg1: 220 22% 8%;
+    --bg2: 220 18% 11%;
+    --bg3: 220 14% 15%;
+
+    /* MONOLITH text tokens */
+    --t1: 220 14% 88%;
+    --t2: 222 12% 51%;
+    --t3: 222 10% 34%;
+
+    /* Signal dim/glow (used via rgb in components) */
+    --green: 158 100% 39%;
+    --green-dim: 158 60% 39% / 0.10;
+    --green-glow: 158 80% 39% / 0.25;
+    --red: 4 76% 52%;
+    --red-dim: 4 60% 52% / 0.10;
+    --red-glow: 4 76% 52% / 0.30;
+    --amber: 36 88% 56%;
+    --amber-dim: 36 60% 56% / 0.10;
+    --blue: 218 92% 62%;
+    --blue-dim: 218 60% 62% / 0.10;
+
+    /* Sidebar (kept for shadcn compatibility) */
+    --sidebar-background: 220 25% 4%;
+    --sidebar-foreground: 220 14% 88%;
+    --sidebar-primary: 158 100% 39%;
+    --sidebar-primary-foreground: 220 25% 4%;
+    --sidebar-accent: 220 18% 11%;
+    --sidebar-accent-foreground: 220 14% 88%;
+    --sidebar-border: 0 0% 100% / 0.06;
+    --sidebar-ring: 158 100% 39%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Manrope', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  /* Ambient Layer — subtle top glow, monolith feel */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 35% at 50% -5%, hsl(158 100% 39% / 0.045) 0%, transparent 65%);
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+@layer utilities {
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+  .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .section-label {
+    @apply flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] my-3;
+    color: hsl(var(--t3));
+  }
+  .section-label::after { content: ''; @apply flex-1 h-px bg-border; }
+
+  /* LED accent strip — use on cards: class="led-top led-green" */
+  .led-top {
+    position: relative;
+  }
+  .led-top::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    border-radius: 12px 12px 0 0;
+  }
+  .led-green::before {
+    background: linear-gradient(90deg, hsl(var(--green)), transparent 80%);
+  }
+  .led-red::before {
+    background: linear-gradient(90deg, hsl(var(--red)), transparent 80%);
+  }
+  .led-amber::before {
+    background: linear-gradient(90deg, hsl(var(--amber)), transparent 80%);
+  }
+  .led-blue::before {
+    background: linear-gradient(90deg, hsl(var(--blue)), transparent 80%);
+  }
+}
+
+/* Minimal scrollbars */
+::-webkit-scrollbar { width: 2px; height: 2px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* Keyframes */
+@keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+@keyframes fade-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes slide-up { from { transform:translateY(100%); } to { transform:translateY(0); } }
+@keyframes shimmer { from { transform:translateX(-100%); } to { transform:translateX(200%); } }
+@keyframes progress-fill { from { width: 0; } }
+
+.animate-pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+.animate-fade-in { animation: fade-in 0.2s ease forwards; }
+.animate-slide-up { animation: slide-up 0.28s cubic-bezier(0.4,0,0.2,1); }
+
+/* Stagger animation for lists */
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.stagger-item { animation: stagger-in 0.25s ease forwards; opacity: 0; }
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 50ms; }
+.stagger-item:nth-child(3) { animation-delay: 100ms; }
+.stagger-item:nth-child(4) { animation-delay: 150ms; }
+.stagger-item:nth-child(5) { animation-delay: 200ms; }
+.stagger-item:nth-child(6) { animation-delay: 250ms; }
+
+/* Skeleton loader */
+.skeleton { position: relative; overflow: hidden; background: hsl(var(--bg2)); border-radius: 6px; }
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%);
+  animation: shimmer 1.6s infinite;
+}
