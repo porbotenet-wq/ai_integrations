@@ -186,35 +186,37 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     try:
         active_obj_ids = [o["id"] for o in objects]
         if active_obj_ids:
+            ids_str = ",".join(str(i) for i in active_obj_ids)
+
             # Total modules (work_type code 'МОД')
-            mod_result = await db.execute(text("""
+            mod_result = await db.execute(text(f"""
                 SELECT COALESCE(SUM(fv.plan_qty), 0), COALESCE(SUM(fv.fact_qty), 0)
                 FROM floor_volumes fv
                 JOIN work_types wt ON wt.id = fv.work_type_id
-                WHERE fv.object_id = ANY(:ids) AND wt.code = 'МОД'
-            """), {"ids": active_obj_ids})
+                WHERE fv.object_id IN ({ids_str}) AND wt.code = 'МОД'
+            """))
             mod_row = mod_result.fetchone()
 
             # Total brackets
-            brk_result = await db.execute(text("""
+            brk_result = await db.execute(text(f"""
                 SELECT COALESCE(SUM(fv.plan_qty), 0), COALESCE(SUM(fv.fact_qty), 0)
                 FROM floor_volumes fv
                 JOIN work_types wt ON wt.id = fv.work_type_id
-                WHERE fv.object_id = ANY(:ids) AND wt.code IN ('КРН-Н', 'КРН-В')
-            """), {"ids": active_obj_ids})
+                WHERE fv.object_id IN ({ids_str}) AND wt.code IN ('КРН-Н', 'КРН-В')
+            """))
             brk_row = brk_result.fetchone()
 
             # KPI by work type
-            kpi_result = await db.execute(text("""
+            kpi_result = await db.execute(text(f"""
                 SELECT wt.name, wt.unit,
                     COALESCE(SUM(fv.plan_qty), 0) as plan,
                     COALESCE(SUM(fv.fact_qty), 0) as fact
                 FROM floor_volumes fv
                 JOIN work_types wt ON wt.id = fv.work_type_id
-                WHERE fv.object_id = ANY(:ids)
+                WHERE fv.object_id IN ({ids_str})
                 GROUP BY wt.name, wt.unit, wt.sequence_order
                 ORDER BY wt.sequence_order
-            """), {"ids": active_obj_ids})
+            """))
 
             kpi = []
             for row in kpi_result:

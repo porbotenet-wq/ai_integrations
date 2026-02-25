@@ -27,6 +27,8 @@ services:
     build: .
     command: python -m bot.main
     env_file: .env
+    volumes:
+      - .:/app
     depends_on:
       redis:
         condition: service_healthy
@@ -38,6 +40,8 @@ services:
     env_file: .env
     ports:
       - "8000:8000"
+    volumes:
+      - .:/app
     depends_on:
       redis:
         condition: service_healthy
@@ -47,6 +51,8 @@ services:
     build: .
     command: python -m scheduler.tasks
     env_file: .env
+    volumes:
+      - .:/app
     depends_on:
       redis:
         condition: service_healthy
