@@ -5,17 +5,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.db.session import async_session
 from bot.db.models import ConstructionObject
 from pydantic import BaseModel
-import os
 import json
 import httpx
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
-# Provider config — поддержка Kimi, Anthropic, любого OpenAI-compatible
-AI_PROVIDER = os.getenv("AI_PROVIDER", "kimi")  # kimi | anthropic | openai
-AI_API_KEY = os.getenv("AI_API_KEY", "") or os.getenv("KIMI_API_KEY", "") or os.getenv("ANTHROPIC_API_KEY", "")
-AI_MODEL = os.getenv("AI_MODEL", "moonshot-v1-8k")
-AI_BASE_URL = os.getenv("AI_BASE_URL", "https://api.moonshot.cn/v1")
+# Config loaded from Settings (bot/config.py) via env
+from bot.config import get_settings
+_s = get_settings()
+AI_PROVIDER = _s.ai_provider
+AI_API_KEY = _s.ai_api_key
+AI_MODEL = _s.ai_model
+AI_BASE_URL = _s.ai_base_url
 
 
 async def get_db():

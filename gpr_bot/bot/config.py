@@ -38,6 +38,12 @@ class Settings(BaseSettings):
 
     admin_telegram_ids: str = ""
 
+    # AI provider
+    ai_provider: str = "kimi"
+    ai_api_key: str = ""
+    ai_model: str = "moonshot-v1-8k"
+    ai_base_url: str = "https://api.moonshot.cn/v1"
+
     @property
     def admin_ids(self) -> list[int]:
         if not self.admin_telegram_ids:
