@@ -1663,3 +1663,83 @@ def register_miniapp_routes(app: FastAPI):
             "size": len(content),
             "type": type,
         }
+
+    # ─── FACT DATA ENTRY ─────────────────────────────────
+
+    class FactEntry(BaseModel):
+        floor_volume_id: int
+        fact_qty: float
+
+    class FactBatchRequest(BaseModel):
+        entries: list[FactEntry]
+
+    @app.get("/api/objects/{object_id}/fact-entry")
+    async def get_fact_entry_data(object_id: int, floor: int | None = None, facade: str | None = None, db: AsyncSession = Depends(get_db)):
+        """Получить данные для внесения факта — этажи/фасады с план/факт"""
+        from bot.db.models import FloorVolume, WorkType
+        query = (
+            select(FloorVolume, WorkType.name.label("work_name"), WorkType.unit, WorkType.code.label("work_code"))
+            .join(WorkType, FloorVolume.work_type_id == WorkType.id)
+            .where(FloorVolume.object_id == object_id)
+            .order_by(FloorVolume.facade, FloorVolume.floor, WorkType.sequence_order)
+        )
+        if floor is not None:
+            query = query.where(FloorVolume.floor == floor)
+        if facade:
+            query = query.where(FloorVolume.facade == facade)
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        # Get available floors and facades for filters
+        floors_q = await db.execute(
+            select(FloorVolume.floor).where(FloorVolume.object_id == object_id)
+            .distinct().order_by(FloorVolume.floor)
+        )
+        facades_q = await db.execute(
+            select(FloorVolume.facade).where(FloorVolume.object_id == object_id)
+            .distinct().order_by(FloorVolume.facade)
+        )
+
+        return {
+            "items": [
+                {
+                    "id": fv.id,
+                    "floor": fv.floor,
+                    "facade": fv.facade,
+                    "work_name": work_name,
+                    "work_code": work_code,
+                    "unit": unit,
+                    "plan_qty": fv.plan_qty,
+                    "fact_qty": fv.fact_qty,
+                    "status": fv.status,
+                    "pct": round(fv.fact_qty / fv.plan_qty * 100, 1) if fv.plan_qty > 0 else 0,
+                }
+                for fv, work_name, unit, work_code in rows
+            ],
+            "filters": {
+                "floors": [r[0] for r in floors_q],
+                "facades": [r[0] for r in facades_q],
+            },
+        }
+
+    @app.post("/api/objects/{object_id}/fact-entry")
+    async def submit_fact_entry(object_id: int, req: FactBatchRequest, db: AsyncSession = Depends(get_db)):
+        """Внести факт по нескольким позициям"""
+        from bot.db.models import FloorVolume
+        updated = 0
+        for entry in req.entries:
+            fv = await db.get(FloorVolume, entry.floor_volume_id)
+            if not fv or fv.object_id != object_id:
+                continue
+            fv.fact_qty = entry.fact_qty
+            if entry.fact_qty >= fv.plan_qty:
+                fv.status = "done"
+            elif entry.fact_qty > 0:
+                fv.status = "in_progress"
+            else:
+                fv.status = "not_started"
+            updated += 1
+
+        await db.commit()
+        return {"updated": updated, "total": len(req.entries)}

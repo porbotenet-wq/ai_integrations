@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # AI provider
     ai_provider: str = "kimi"
     ai_api_key: str = ""
-    ai_model: str = "moonshot-v1-32k"
+    ai_model: str = "kimi-k2.5"
     ai_base_url: str = "https://api.moonshot.ai/v1"
 
     @property
