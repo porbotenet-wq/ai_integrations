@@ -69,7 +69,7 @@
 - [x] Seed данные для всех таблиц
 - [x] API: element-status (pipeline по стадиям производства)
 - [x] UI: TrackingView (pipeline stages, summary, defects)
-- [ ] UI: production_plan (план производства по цехам)
+- [x] UI: PlanView (план производства по цехам/линиям, план/факт)
 
 ### 5.4 Чаты задач через TG (приоритет 4) ✅
 - [x] Deep links из бота в Mini App (объекты, задачи, ГПР, поставки, монтаж, производство)
@@ -100,4 +100,4 @@
 - [ ] Supabase anon key ротация (утёк в git history)
 - [ ] Унифицировать БД: подключить gpr_bot к Supabase PostgreSQL (или наоборот)
 - [ ] Тесты: API endpoints, RBAC, auth
-- [ ] CI/CD: auto-deploy on push
+- [x] CI/CD: git-poll auto-deploy every 5min on droplet
