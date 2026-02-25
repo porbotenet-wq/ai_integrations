@@ -710,3 +710,79 @@ class AIChatMessage(Base):
 
     object = relationship("ConstructionObject")
     user = relationship("User")
+
+
+# ─── WORKFLOW ENGINE ─────────────────────────────────────
+
+class WorkflowTemplate(Base):
+    """Шаблон workflow (цепочка этапов проекта)"""
+    __tablename__ = "workflow_templates"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+
+    steps = relationship("WorkflowTemplateStep", back_populates="template", order_by="WorkflowTemplateStep.step_number")
+
+
+class WorkflowTemplateStep(Base):
+    """Шаг шаблона workflow"""
+    __tablename__ = "workflow_template_steps"
+
+    id = Column(Integer, primary_key=True)
+    template_id = Column(Integer, ForeignKey("workflow_templates.id", ondelete="CASCADE"), nullable=False)
+    step_number = Column(Integer, nullable=False)
+    name = Column(String(500), nullable=False)
+    description = Column(Text)
+    phase = Column(String(50), nullable=False)  # contract, design, supply, production, construction, acceptance
+    responsible_role = Column(String(100))
+    duration_days = Column(Integer)
+    depends_on_step_id = Column(Integer, ForeignKey("workflow_template_steps.id"), nullable=True)
+    auto_notify = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=func.now())
+
+    template = relationship("WorkflowTemplate", back_populates="steps")
+    depends_on = relationship("WorkflowTemplateStep", remote_side=[id])
+
+
+class WorkflowInstance(Base):
+    """Экземпляр workflow для конкретного объекта"""
+    __tablename__ = "workflow_instances"
+
+    id = Column(Integer, primary_key=True)
+    object_id = Column(Integer, ForeignKey("objects.id"), nullable=False)
+    template_id = Column(Integer, ForeignKey("workflow_templates.id"), nullable=False)
+    status = Column(String(20), default="active")  # active, completed, paused
+    started_at = Column(DateTime, default=func.now())
+    completed_at = Column(DateTime)
+
+    object = relationship("ConstructionObject")
+    template = relationship("WorkflowTemplate")
+    steps = relationship("WorkflowInstanceStep", back_populates="instance", order_by="WorkflowInstanceStep.step_number")
+
+
+class WorkflowInstanceStep(Base):
+    """Шаг экземпляра workflow"""
+    __tablename__ = "workflow_instance_steps"
+
+    id = Column(Integer, primary_key=True)
+    instance_id = Column(Integer, ForeignKey("workflow_instances.id", ondelete="CASCADE"), nullable=False)
+    template_step_id = Column(Integer, ForeignKey("workflow_template_steps.id"), nullable=False)
+    step_number = Column(Integer, nullable=False)
+    name = Column(String(500), nullable=False)
+    phase = Column(String(50), nullable=False)
+    assignee_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    status = Column(String(20), default="pending")  # pending, active, in_progress, review, done, blocked
+    planned_start = Column(Date)
+    planned_end = Column(Date)
+    actual_start = Column(Date)
+    actual_end = Column(Date)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    instance = relationship("WorkflowInstance", back_populates="steps")
+    template_step = relationship("WorkflowTemplateStep")
+    assignee = relationship("User")

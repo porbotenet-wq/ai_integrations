@@ -339,12 +339,14 @@ from api.routes.production_chain import router as production_chain_router
 from api.routes.excel import router as excel_router
 from api.routes.analytics import router as analytics_router
 from api.routes.auth import router as auth_router
+from api.routes.workflow import router as workflow_router
 
 app.include_router(auth_router)
 app.include_router(production_router)
 app.include_router(production_chain_router)
 app.include_router(excel_router)
 app.include_router(analytics_router)
+app.include_router(workflow_router)
 
 # ─── MINI APP V2 ROUTES ──────────────────────────────────
 from api.routes.miniapp import register_miniapp_routes
