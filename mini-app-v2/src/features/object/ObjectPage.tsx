@@ -3,6 +3,9 @@ import { useParams } from "react-router-dom";
 import { useObject } from "@/shared/api";
 import { GPRTab } from "@/features/gpr/GPRTab";
 import { TasksTab } from "@/features/tasks/TasksTab";
+import { SupplyTab } from "@/features/supply/SupplyTab";
+import { ConstructionTab } from "@/features/construction/ConstructionTab";
+import { DocumentsTab } from "@/features/documents/DocumentsTab";
 import { OBJECT_STATUS_LABELS, statusColor } from "@/shared/lib/format";
 
 type Tab = "gpr" | "tasks" | "construction" | "supply" | "docs";
@@ -68,9 +71,9 @@ export function ObjectPage() {
       <div className="px-4 py-2">
         {activeTab === "gpr" && <GPRTab objectId={objectId} />}
         {activeTab === "tasks" && <TasksTab objectId={objectId} />}
-        {activeTab === "construction" && <div className="text-tg-hint text-sm py-8 text-center">Монтаж — в разработке</div>}
-        {activeTab === "supply" && <div className="text-tg-hint text-sm py-8 text-center">Поставки — в разработке</div>}
-        {activeTab === "docs" && <div className="text-tg-hint text-sm py-8 text-center">Документы — в разработке</div>}
+        {activeTab === "construction" && <ConstructionTab objectId={objectId} />}
+        {activeTab === "supply" && <SupplyTab objectId={objectId} />}
+        {activeTab === "docs" && <DocumentsTab objectId={objectId} />}
       </div>
     </div>
   );

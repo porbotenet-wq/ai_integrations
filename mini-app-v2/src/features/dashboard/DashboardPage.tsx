@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { useDashboard, useProfile, useNotificationSummary } from '@/shared/api';
 import { formatDateShort, daysUntil, OBJECT_STATUS_LABELS } from '@/shared/lib/format';
+import type { ProductionKPI } from '@/shared/api/types';
 import {
   Building2, CheckCircle2, AlertTriangle, Clock, Truck, Plus, Bell,
+  Layers, Wrench, TrendingUp,
 } from 'lucide-react';
 
 export function DashboardPage() {
@@ -65,6 +67,48 @@ export function DashboardPage() {
           color="text-status-yellow"
         />
       </div>
+
+      {/* Production Progress */}
+      {data.production && (
+        <div className="px-4 space-y-3">
+          <div className="section-header mt-0">Производство</div>
+
+          {/* Modules + Brackets */}
+          <div className="grid grid-cols-2 gap-3">
+            <ProductionGauge
+              label="Модули"
+              icon={<Layers size={16} />}
+              fact={data.production.modules_fact}
+              plan={data.production.modules_plan}
+              pct={data.production.modules_pct}
+              color="blue"
+            />
+            <ProductionGauge
+              label="Кронштейны"
+              icon={<Wrench size={16} />}
+              fact={data.production.brackets_fact}
+              plan={data.production.brackets_plan}
+              pct={data.production.brackets_pct}
+              color="green"
+            />
+          </div>
+
+          {/* KPI by work type */}
+          {data.production.kpi.length > 0 && (
+            <div className="card">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp size={14} className="text-tg-hint" />
+                <span className="text-xs font-semibold text-tg-text">По видам работ</span>
+              </div>
+              <div className="space-y-2.5">
+                {data.production.kpi.map((kpi) => (
+                  <KPIProgressRow key={kpi.name} kpi={kpi} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Objects list */}
       <div className="section-header mt-2">Объекты</div>
@@ -204,6 +248,74 @@ function ErrorState({ message }: { message: string }) {
     <div className="flex flex-col items-center justify-center py-20 text-tg-hint">
       <AlertTriangle size={40} className="mb-3 text-status-red" />
       <p>{message}</p>
+    </div>
+  );
+}
+
+// ─── Production components ───────────────────────────────
+
+function ProductionGauge({ label, icon, fact, plan, pct, color }: {
+  label: string;
+  icon: React.ReactNode;
+  fact: number;
+  plan: number;
+  pct: number;
+  color: 'blue' | 'green';
+}) {
+  const colorClass = color === 'blue' ? 'text-status-blue' : 'text-status-green';
+  const bgClass = color === 'blue' ? 'bg-status-blue' : 'bg-status-green';
+
+  return (
+    <div className="card">
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`${colorClass} opacity-80`}>{icon}</div>
+        <span className="text-xs font-medium text-tg-hint">{label}</span>
+      </div>
+      <div className="text-xl font-bold text-tg-text">
+        {fact.toLocaleString('ru-RU')}
+        <span className="text-xs font-normal text-tg-hint ml-1">/ {plan.toLocaleString('ru-RU')}</span>
+      </div>
+      <div className="mt-2">
+        <div className="flex items-center justify-between text-2xs text-tg-hint mb-1">
+          <span>Выполнение</span>
+          <span className={`font-medium ${colorClass}`}>{pct}%</span>
+        </div>
+        <div className="h-1.5 bg-tg-hint/10 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-700 ${bgClass}`}
+            style={{ width: `${Math.min(pct, 100)}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KPIProgressRow({ kpi }: { kpi: ProductionKPI }) {
+  const pctColor = kpi.pct >= 80 ? 'text-status-green'
+    : kpi.pct >= 40 ? 'text-status-yellow'
+    : 'text-status-red';
+  const barColor = kpi.pct >= 80 ? 'bg-status-green'
+    : kpi.pct >= 40 ? 'bg-status-yellow'
+    : 'bg-status-red';
+
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs mb-1">
+        <span className="text-tg-text truncate flex-1 mr-2">{kpi.name}</span>
+        <span className="text-tg-hint flex-shrink-0">
+          {kpi.fact.toLocaleString('ru-RU')} / {kpi.plan.toLocaleString('ru-RU')} {kpi.unit}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="h-1 bg-tg-hint/10 rounded-full overflow-hidden flex-1">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+            style={{ width: `${Math.min(kpi.pct, 100)}%` }}
+          />
+        </div>
+        <span className={`text-2xs font-medium ${pctColor} w-10 text-right`}>{kpi.pct}%</span>
+      </div>
     </div>
   );
 }

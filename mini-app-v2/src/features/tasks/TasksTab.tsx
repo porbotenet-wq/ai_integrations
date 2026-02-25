@@ -151,7 +151,7 @@ function TaskCard({ task, expanded, onToggle }: {
             {getNextStatuses(task.status).map((nextStatus) => (
               <button
                 key={nextStatus}
-                onClick={() => updateStatus.mutate({ taskId: task.id, data: { status: nextStatus } })}
+                onClick={() => updateStatus.mutate({ taskId: task.id, status: nextStatus })}
                 disabled={updateStatus.isPending}
                 className="text-xs px-3 py-1.5 bg-tg-button/10 text-tg-button rounded-lg transition-colors active:bg-tg-button/20 touch-target"
               >

@@ -79,10 +79,13 @@ export function useSignGPR() {
 }
 
 // ─── Tasks ──────────────────────────────────────────────
-export function useTasks(objectId: number) {
+export function useTasks(objectId: number, department?: string) {
   return useQuery({
-    queryKey: ["tasks", objectId],
-    queryFn: () => api.get<Task[]>(`/api/objects/${objectId}/tasks`),
+    queryKey: ["tasks", objectId, department],
+    queryFn: () => {
+      const params = department ? `?department=${department}` : '';
+      return api.get<Task[]>(`/api/objects/${objectId}/tasks${params}`);
+    },
     enabled: !!objectId,
   });
 }

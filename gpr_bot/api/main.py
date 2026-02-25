@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from bot.db.session import async_session, init_db
@@ -8,6 +8,7 @@ from bot.db.models import (
     ConstructionObject, ObjectStatus, GPR, GPRItem, Task, TaskStatus,
     SupplyOrder, SupplyStatus, ConstructionStage, ConstructionStageStatus,
     Department, User, ObjectRole,
+    FloorVolume, WorkType, DailyPlanFact,
 )
 from bot.rbac.permissions import DEPARTMENT_NAMES
 from pydantic import BaseModel
@@ -69,6 +70,7 @@ class DashboardOut(BaseModel):
     completed_tasks: int
     delayed_supplies: int
     objects: list[dict]
+    production: dict | None = None
 
 
 class ObjectSummary(BaseModel):
@@ -179,6 +181,86 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
             "progress_pct": round(t_done / t_total * 100) if t_total > 0 else 0,
         })
 
+    # ── Production aggregation across all active objects ──
+    production = None
+    try:
+        active_obj_ids = [o["id"] for o in objects]
+        if active_obj_ids:
+            # Total modules (work_type code 'МОД')
+            mod_result = await db.execute(text("""
+                SELECT COALESCE(SUM(fv.plan_qty), 0), COALESCE(SUM(fv.fact_qty), 0)
+                FROM floor_volumes fv
+                JOIN work_types wt ON wt.id = fv.work_type_id
+                WHERE fv.object_id = ANY(:ids) AND wt.code = 'МОД'
+            """), {"ids": active_obj_ids})
+            mod_row = mod_result.fetchone()
+
+            # Total brackets
+            brk_result = await db.execute(text("""
+                SELECT COALESCE(SUM(fv.plan_qty), 0), COALESCE(SUM(fv.fact_qty), 0)
+                FROM floor_volumes fv
+                JOIN work_types wt ON wt.id = fv.work_type_id
+                WHERE fv.object_id = ANY(:ids) AND wt.code IN ('КРН-Н', 'КРН-В')
+            """), {"ids": active_obj_ids})
+            brk_row = brk_result.fetchone()
+
+            # KPI by work type
+            kpi_result = await db.execute(text("""
+                SELECT wt.name, wt.unit,
+                    COALESCE(SUM(fv.plan_qty), 0) as plan,
+                    COALESCE(SUM(fv.fact_qty), 0) as fact
+                FROM floor_volumes fv
+                JOIN work_types wt ON wt.id = fv.work_type_id
+                WHERE fv.object_id = ANY(:ids)
+                GROUP BY wt.name, wt.unit, wt.sequence_order
+                ORDER BY wt.sequence_order
+            """), {"ids": active_obj_ids})
+
+            kpi = []
+            for row in kpi_result:
+                p, f = float(row[2]), float(row[3])
+                kpi.append({
+                    "name": row[0], "unit": row[1],
+                    "plan": p, "fact": f,
+                    "pct": round(f / p * 100, 1) if p > 0 else 0,
+                })
+
+            # Per-object production progress
+            obj_prod = []
+            for oid in active_obj_ids:
+                op_result = await db.execute(text("""
+                    SELECT COALESCE(SUM(fv.plan_qty), 0), COALESCE(SUM(fv.fact_qty), 0)
+                    FROM floor_volumes fv
+                    JOIN work_types wt ON wt.id = fv.work_type_id
+                    WHERE fv.object_id = :oid AND wt.code = 'МОД'
+                """), {"oid": oid})
+                op_row = op_result.fetchone()
+                if op_row and float(op_row[0]) > 0:
+                    obj_prod.append({
+                        "object_id": oid,
+                        "modules_plan": int(float(op_row[0])),
+                        "modules_fact": int(float(op_row[1])),
+                        "modules_pct": round(float(op_row[1]) / float(op_row[0]) * 100, 1),
+                    })
+
+            mod_plan = int(float(mod_row[0])) if mod_row else 0
+            mod_fact = int(float(mod_row[1])) if mod_row else 0
+            brk_plan = int(float(brk_row[0])) if brk_row else 0
+            brk_fact = int(float(brk_row[1])) if brk_row else 0
+
+            production = {
+                "modules_plan": mod_plan,
+                "modules_fact": mod_fact,
+                "modules_pct": round(mod_fact / mod_plan * 100, 1) if mod_plan > 0 else 0,
+                "brackets_plan": brk_plan,
+                "brackets_fact": brk_fact,
+                "brackets_pct": round(brk_fact / brk_plan * 100, 1) if brk_plan > 0 else 0,
+                "kpi": kpi,
+                "by_object": obj_prod,
+            }
+    except Exception:
+        production = None
+
     return DashboardOut(
         active_objects=active_objects,
         total_tasks=total_tasks,
@@ -186,6 +268,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
         completed_tasks=completed_tasks,
         delayed_supplies=delayed_supplies,
         objects=objects,
+        production=production,
     )
 
 

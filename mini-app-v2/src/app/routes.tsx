@@ -18,7 +18,7 @@ export function AppRoutes() {
       <Suspense fallback={<Loader />}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/object/:id/*" element={<ObjectPage />} />
+          <Route path="/objects/:id/*" element={<ObjectPage />} />
           <Route path="/notifications" element={<NotificationCenter />} />
           <Route path="/profile/*" element={<ProfilePage />} />
         </Routes>

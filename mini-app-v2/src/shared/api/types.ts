@@ -163,6 +163,32 @@ export interface NotificationSummary {
 }
 
 // ─── Dashboard ──────────────────────────────────────────
+export interface ProductionKPI {
+  name: string;
+  unit: string;
+  plan: number;
+  fact: number;
+  pct: number;
+}
+
+export interface ObjectProduction {
+  object_id: number;
+  modules_plan: number;
+  modules_fact: number;
+  modules_pct: number;
+}
+
+export interface ProductionData {
+  modules_plan: number;
+  modules_fact: number;
+  modules_pct: number;
+  brackets_plan: number;
+  brackets_fact: number;
+  brackets_pct: number;
+  kpi: ProductionKPI[];
+  by_object: ObjectProduction[];
+}
+
 export interface DashboardData {
   active_objects: number;
   total_tasks: number;
@@ -170,6 +196,7 @@ export interface DashboardData {
   completed_tasks: number;
   delayed_supplies: number;
   objects: ObjectSummary[];
+  production: ProductionData | null;
 }
 
 // ─── Activity ───────────────────────────────────────────
@@ -209,4 +236,38 @@ export interface UserBrief {
   photo_url: string | null;
 }
 
-export type NotificationCategory = "tasks" | "gpr" | "supply" | "system";
+export type NotificationCategory = "tasks" | "gpr" | "supply" | "construction" | "escalation" | "system";
+
+// ─── Aliases used by components ─────────────────────────
+export type Department = string;
+export type TaskData = Task;
+export type NotificationPriority = "critical" | "high" | "normal" | "low";
+
+export interface NotificationAction {
+  key: string;
+  label: string;
+  icon: string;
+  style: string;
+}
+
+export interface NotificationData extends Notification {
+  priority: NotificationPriority;
+  category: NotificationCategory;
+  text: string | null;
+  object_id: number | null;
+  object_name: string | null;
+  is_actionable: boolean;
+  escalation_level: number | null;
+  actions: NotificationAction[];
+  deep_link: string | null;
+  triggered_by: string | null;
+  expires_at: string | null;
+}
+
+export interface OrgUnit {
+  id: number;
+  name: string;
+  employee_count: number;
+  head: UserBrief | null;
+  children: OrgUnit[];
+}
