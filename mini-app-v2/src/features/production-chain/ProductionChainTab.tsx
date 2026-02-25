@@ -3,18 +3,19 @@ import { api } from '@/shared/api/client';
 import { useState } from 'react';
 import {
   Factory, Package, Truck, Layers, ChevronDown, ChevronRight,
-  AlertTriangle, CheckCircle2, Clock, Boxes,
+    AlertTriangle, CheckCircle2, Clock, Boxes, TrendingUp,
 } from 'lucide-react';
 
 interface Props {
   objectId: number;
 }
 
-type SubTab = 'zones' | 'materials' | 'warehouse' | 'shipments' | 'tracking';
+type SubTab = 'zones' | 'materials' | 'warehouse' | 'shipments' | 'tracking' | 'plan';
 
 const SUB_TABS: { id: SubTab; label: string; icon: React.ReactNode }[] = [
   { id: 'zones', label: 'Зоны', icon: <Layers size={14} /> },
   { id: 'tracking', label: 'Трекинг', icon: <Factory size={14} /> },
+  { id: 'plan', label: 'План', icon: <TrendingUp size={14} /> },
   { id: 'materials', label: 'Материалы', icon: <Boxes size={14} /> },
   { id: 'warehouse', label: 'Склад', icon: <Package size={14} /> },
   { id: 'shipments', label: 'Отгрузки', icon: <Truck size={14} /> },
@@ -45,6 +46,7 @@ export function ProductionChainTab({ objectId }: Props) {
 
       {subTab === 'zones' && <ZonesView objectId={objectId} />}
       {subTab === 'tracking' && <TrackingView objectId={objectId} />}
+      {subTab === 'plan' && <PlanView objectId={objectId} />}
       {subTab === 'materials' && <MaterialsView objectId={objectId} />}
       {subTab === 'warehouse' && <WarehouseView objectId={objectId} />}
       {subTab === 'shipments' && <ShipmentsView objectId={objectId} />}
@@ -296,6 +298,118 @@ function ShipmentsView({ objectId }: { objectId: number }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ── Production Plan ───────────────────────────────────── */
+
+function PlanView({ objectId }: { objectId: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['production-plan', objectId],
+    queryFn: () => api.get<any>(`/api/production-chain/${objectId}/production-plan`),
+  });
+  const [expandedWs, setExpandedWs] = useState<string | null>(null);
+
+  if (isLoading) return <Skeleton count={4} />;
+  if (!data?.workshops?.length) return <Empty text="План производства не создан" />;
+
+  const s = data.summary;
+
+  return (
+    <div className="space-y-3">
+      {/* Summary */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-tg-text">Выполнение плана</span>
+          <span className="text-xs text-tg-hint">{s.days} дн.</span>
+        </div>
+        <div className="flex items-end gap-3 mb-2">
+          <div>
+            <div className="text-2xs text-tg-hint">План</div>
+            <div className="text-lg font-bold text-tg-text">{fmt(s.total_plan)}</div>
+          </div>
+          <div>
+            <div className="text-2xs text-tg-hint">Факт</div>
+            <div className="text-lg font-bold text-status-blue">{fmt(s.total_fact)}</div>
+          </div>
+          <div className="flex-1" />
+          <div className={`text-xl font-bold ${s.completion_pct >= 80 ? 'text-status-green' : s.completion_pct >= 50 ? 'text-status-yellow' : 'text-status-red'}`}>
+            {s.completion_pct}%
+          </div>
+        </div>
+        <div className="h-2 bg-tg-hint/10 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-700 ${
+              s.completion_pct >= 80 ? 'bg-status-green' : s.completion_pct >= 50 ? 'bg-status-yellow' : 'bg-status-red'
+            }`}
+            style={{ width: `${Math.min(s.completion_pct, 100)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Workshops */}
+      {data.workshops.map((ws: any) => {
+        const isOpen = expandedWs === ws.name;
+        const barColor = ws.pct >= 80 ? 'bg-status-green' : ws.pct >= 50 ? 'bg-status-yellow' : 'bg-status-red';
+
+        return (
+          <div key={ws.name} className="card">
+            <button
+              onClick={() => setExpandedWs(isOpen ? null : ws.name)}
+              className="w-full text-left touch-target"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-medium text-tg-text">{ws.name}</h4>
+                  <div className="text-2xs text-tg-hint mt-0.5">
+                    {ws.lines.length} линий · План: {fmt(ws.plan)} · Факт: {fmt(ws.fact)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-sm font-bold ${ws.pct >= 80 ? 'text-status-green' : ws.pct >= 50 ? 'text-status-yellow' : 'text-status-red'}`}>
+                    {ws.pct}%
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`text-tg-hint transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                  />
+                </div>
+              </div>
+              <div className="mt-2 h-1 bg-tg-hint/10 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(ws.pct, 100)}%` }} />
+              </div>
+            </button>
+
+            {isOpen && (
+              <div className="mt-3 pt-3 border-t border-tg-hint/10 space-y-3">
+                {ws.lines.map((line: any) => (
+                  <div key={line.name}>
+                    <div className="text-2xs font-semibold text-tg-hint mb-1.5">{line.name}</div>
+                    <div className="space-y-1">
+                      {line.entries.slice(0, 10).map((e: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2 text-xs py-0.5">
+                          <span className="text-tg-hint w-14 flex-shrink-0">{e.date ? formatShort(e.date) : '—'}</span>
+                          <span className="font-mono text-tg-hint w-16 flex-shrink-0 truncate">{e.mark}</span>
+                          <span className="flex-1 min-w-0">
+                            <span className="text-tg-text">{fmt(e.fact_qty)}</span>
+                            <span className="text-tg-hint"> / {fmt(e.plan_qty)}</span>
+                          </span>
+                          {e.deviation !== null && e.deviation !== 0 && (
+                            <span className={`text-2xs font-medium flex-shrink-0 ${e.deviation >= 0 ? 'text-status-green' : 'text-status-red'}`}>
+                              {e.deviation > 0 ? '+' : ''}{e.deviation.toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

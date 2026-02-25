@@ -326,3 +326,89 @@ async def get_object_chats(object_id: int, db: AsyncSession = Depends(get_db)):
         }
         for c in chats
     ]
+
+
+# ── Production Plan (per object) ─────────────────────────
+
+@router.get("/{object_id}/production-plan")
+async def get_production_plan(object_id: int, db: AsyncSession = Depends(get_db)):
+    """Get production plan grouped by workshop and line."""
+    # Get zones → BOM items for this object
+    zone_ids = (await db.execute(
+        select(Zone.id).where(Zone.object_id == object_id)
+    )).scalars().all()
+
+    if not zone_ids:
+        return {"workshops": [], "summary": {}}
+
+    bom_ids = (await db.execute(
+        select(BOMItem.id).where(BOMItem.zone_id.in_(zone_ids))
+    )).scalars().all()
+
+    if not bom_ids:
+        return {"workshops": [], "summary": {}}
+
+    # Get production plan entries
+    from sqlalchemy import desc
+    result = await db.execute(
+        select(ProductionPlan, BOMItem)
+        .join(BOMItem, BOMItem.id == ProductionPlan.bom_item_id)
+        .where(ProductionPlan.bom_item_id.in_(bom_ids))
+        .order_by(ProductionPlan.date.desc(), ProductionPlan.workshop)
+    )
+    rows = result.all()
+
+    # Group by workshop
+    by_workshop: dict[str, dict] = {}
+    total_plan = 0
+    total_fact = 0
+    dates_seen = set()
+
+    for pp, bom in rows:
+        ws = pp.workshop or "Без цеха"
+        if ws not in by_workshop:
+            by_workshop[ws] = {"name": ws, "lines": {}, "plan": 0, "fact": 0}
+
+        ln = pp.line or "—"
+        if ln not in by_workshop[ws]["lines"]:
+            by_workshop[ws]["lines"][ln] = []
+
+        by_workshop[ws]["lines"][ln].append({
+            "date": pp.date.isoformat() if pp.date else None,
+            "mark": bom.mark,
+            "material": bom.material,
+            "plan_qty": pp.plan_qty,
+            "fact_qty": pp.fact_qty,
+            "deviation": pp.deviation,
+            "completion_pct": pp.completion_pct,
+        })
+
+        by_workshop[ws]["plan"] += pp.plan_qty or 0
+        by_workshop[ws]["fact"] += pp.fact_qty or 0
+        total_plan += pp.plan_qty or 0
+        total_fact += pp.fact_qty or 0
+        if pp.date:
+            dates_seen.add(pp.date.isoformat())
+
+    workshops = []
+    for ws_data in by_workshop.values():
+        lines = []
+        for ln_name, entries in ws_data["lines"].items():
+            lines.append({"name": ln_name, "entries": entries})
+        workshops.append({
+            "name": ws_data["name"],
+            "lines": lines,
+            "plan": ws_data["plan"],
+            "fact": ws_data["fact"],
+            "pct": round(ws_data["fact"] / ws_data["plan"] * 100, 1) if ws_data["plan"] > 0 else 0,
+        })
+
+    return {
+        "workshops": workshops,
+        "summary": {
+            "total_plan": total_plan,
+            "total_fact": total_fact,
+            "completion_pct": round(total_fact / total_plan * 100, 1) if total_plan > 0 else 0,
+            "days": len(dates_seen),
+        },
+    }
