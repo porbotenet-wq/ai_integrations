@@ -13,6 +13,9 @@ from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 from datetime import date, datetime
 import hashlib, hmac, json, urllib.parse
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def register_miniapp_routes(app: FastAPI):
@@ -597,6 +600,14 @@ def register_miniapp_routes(app: FastAPI):
             db.add(comment)
 
         await db.commit()
+
+        # Fire event engine
+        try:
+            from bot.services.event_engine import on_task_status_changed
+            await on_task_status_changed(db, task, old_status, changed_by=user)
+        except Exception as e:
+            logger.warning(f"Event engine error (task status): {e}")
+
         return {"id": task.id, "status": task.status.value, "ok": True}
 
     # ── Task creation ──
@@ -622,6 +633,14 @@ def register_miniapp_routes(app: FastAPI):
         await write_audit(db, user.id, "task.create", "task", task.id,
                           None, {"title": body.title, "department": body.department})
         await db.commit()
+
+        # Fire event engine — notify assignee
+        if task.assignee_id:
+            try:
+                from bot.services.event_engine import on_task_assigned
+                await on_task_assigned(db, task, assigned_by=user)
+            except Exception as e:
+                logger.warning(f"Event engine error (task assign): {e}")
 
         return {"id": task.id, "title": task.title, "status": task.status.value}
 
