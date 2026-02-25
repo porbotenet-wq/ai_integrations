@@ -7,9 +7,10 @@ import { SupplyTab } from "@/features/supply/SupplyTab";
 import { ConstructionTab } from "@/features/construction/ConstructionTab";
 import { DocumentsTab } from "@/features/documents/DocumentsTab";
 import { ProductionChainTab } from "@/features/production-chain/ProductionChainTab";
+import { AIChatTab } from "@/features/ai-chat/AIChatTab";
 import { OBJECT_STATUS_LABELS, statusColor } from "@/shared/lib/format";
 
-type Tab = "gpr" | "tasks" | "construction" | "supply" | "docs" | "production";
+type Tab = "gpr" | "tasks" | "construction" | "supply" | "docs" | "production" | "ai";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "gpr", label: "ГПР", icon: "📋" },
@@ -18,6 +19,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "production", label: "Произв.", icon: "🏭" },
   { id: "supply", label: "Поставки", icon: "📦" },
   { id: "docs", label: "Документы", icon: "📄" },
+  { id: "ai", label: "AI", icon: "🤖" },
 ];
 
 export function ObjectPage() {
@@ -81,6 +83,7 @@ export function ObjectPage() {
         {activeTab === "production" && <ProductionChainTab objectId={objectId} />}
         {activeTab === "supply" && <SupplyTab objectId={objectId} />}
         {activeTab === "docs" && <DocumentsTab objectId={objectId} />}
+        {activeTab === "ai" && <AIChatTab objectId={objectId} objectName={obj.name} />}
       </div>
     </div>
   );
