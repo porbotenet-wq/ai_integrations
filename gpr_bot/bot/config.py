@@ -6,8 +6,8 @@ class Settings(BaseSettings):
     bot_token: str
     webapp_url: str = "https://smr-sfera.lovable.app"
 
-    database_url: str = "postgresql+asyncpg://postgres.fbcoqozxbmrrjpssrdld:THvIG9Zjk9MND8c@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
-    database_url_sync: str = "postgresql://postgres.fbcoqozxbmrrjpssrdld:THvIG9Zjk9MND8c@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+    database_url: str = ""
+    database_url_sync: str = ""
 
     redis_url: str = "redis://localhost:6379/0"
 
