@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     # AI provider
     ai_provider: str = "kimi"
     ai_api_key: str = ""
-    ai_model: str = "moonshot-v1-8k"
-    ai_base_url: str = "https://api.moonshot.cn/v1"
+    ai_model: str = "moonshot-v1-32k"
+    ai_base_url: str = "https://api.moonshot.ai/v1"
 
     @property
     def admin_ids(self) -> list[int]:
