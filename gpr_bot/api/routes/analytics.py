@@ -1,4 +1,4 @@
-"""Analytics API — Claude-powered анализ данных проекта"""
+"""Analytics API — AI-powered анализ данных проекта (Kimi / Anthropic / OpenAI-compatible)"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +11,11 @@ import httpx
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+# Provider config — поддержка Kimi, Anthropic, любого OpenAI-compatible
+AI_PROVIDER = os.getenv("AI_PROVIDER", "kimi")  # kimi | anthropic | openai
+AI_API_KEY = os.getenv("AI_API_KEY", "") or os.getenv("KIMI_API_KEY", "") or os.getenv("ANTHROPIC_API_KEY", "")
+AI_MODEL = os.getenv("AI_MODEL", "moonshot-v1-8k")
+AI_BASE_URL = os.getenv("AI_BASE_URL", "https://api.moonshot.cn/v1")
 
 
 async def get_db():
@@ -30,13 +33,19 @@ class AskResponse(BaseModel):
     data_context: dict | None = None
 
 
+SYSTEM_PROMPT = """Ты — аналитик строительного проекта СПК (светопрозрачные конструкции).
+Отвечай на русском, кратко и по делу. Используй данные из контекста.
+Если спрашивают про отклонения — считай разницу план/факт.
+Если спрашивают про прогноз — экстраполируй текущий темп.
+Форматируй числа с единицами измерения."""
+
+
 async def get_project_context(db: AsyncSession, object_id: int) -> str:
-    """Собрать контекст проекта для Claude"""
+    """Собрать контекст проекта для AI"""
     obj = await db.get(ConstructionObject, object_id)
     if not obj:
         return "Объект не найден"
 
-    # KPI
     kpi = await db.execute(text("""
         SELECT wt.name, wt.unit,
             COALESCE(SUM(fv.plan_qty),0) as plan,
@@ -49,7 +58,6 @@ async def get_project_context(db: AsyncSession, object_id: int) -> str:
     """), {"oid": object_id})
     kpi_rows = kpi.fetchall()
 
-    # По фасадам
     facades = await db.execute(text("""
         SELECT fv.facade,
             COALESCE(SUM(CASE WHEN wt.code='МОД' THEN fv.plan_qty END),0) as mod_plan,
@@ -61,31 +69,18 @@ async def get_project_context(db: AsyncSession, object_id: int) -> str:
     """), {"oid": object_id})
     facade_rows = facades.fetchall()
 
-    # Бригады
-    crews = await db.execute(text("""
-        SELECT code, name, specialization, max_workers, status FROM crews ORDER BY code
-    """))
+    crews = await db.execute(text(
+        "SELECT code, name, specialization, max_workers, status FROM crews ORDER BY code"
+    ))
     crew_rows = crews.fetchall()
 
-    # Последние записи план-факт
     recent = await db.execute(text("""
         SELECT date, floor, facade, work_name, plan_daily, fact_volume, crew_code
         FROM daily_plan_fact
         WHERE object_id = :oid
-        ORDER BY date DESC, sequence_order
-        LIMIT 30
+        ORDER BY date DESC, sequence_order LIMIT 30
     """), {"oid": object_id})
     recent_rows = recent.fetchall()
-
-    # ГПР понедельно
-    gpr = await db.execute(text("""
-        SELECT wt.name, gw.week_code, gw.plan_qty, gw.fact_qty
-        FROM gpr_weekly gw
-        JOIN work_types wt ON wt.id = gw.work_type_id
-        WHERE gw.object_id = :oid
-        ORDER BY wt.sequence_order, gw.week_code
-    """), {"oid": object_id})
-    gpr_rows = gpr.fetchall()
 
     ctx = f"""ПРОЕКТ: {obj.name}
 Адрес: {obj.address}
@@ -115,22 +110,63 @@ KPI ПО ВИДАМ РАБОТ:
     for r in recent_rows:
         ctx += f"  {r[0]} | эт.{r[1]} {r[2]} | {r[3]}: план={r[4]}, факт={r[5]}, бригада={r[6]}\n"
 
-    ctx += "\nГПР ПОНЕДЕЛЬНО:\n"
-    for r in gpr_rows:
-        ctx += f"  {r[0]} | {r[1]}: план={float(r[2])}, факт={float(r[3])}\n"
-
     return ctx
+
+
+async def call_ai(system: str, user_msg: str) -> str:
+    """Универсальный вызов AI — Kimi/OpenAI-compatible или Anthropic"""
+    if not AI_API_KEY:
+        raise HTTPException(500, "AI_API_KEY not configured. Set AI_API_KEY or KIMI_API_KEY in .env")
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        if AI_PROVIDER == "anthropic":
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": AI_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": AI_MODEL,
+                    "max_tokens": 2048,
+                    "system": system,
+                    "messages": [{"role": "user", "content": user_msg}],
+                },
+            )
+            if resp.status_code != 200:
+                raise HTTPException(502, f"Anthropic API error: {resp.status_code}")
+            data = resp.json()
+            return data.get("content", [{}])[0].get("text", "Нет ответа")
+        else:
+            # OpenAI-compatible: Kimi, OpenAI, DeepSeek, etc.
+            resp = await client.post(
+                f"{AI_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {AI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": AI_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user_msg},
+                    ],
+                    "max_tokens": 2048,
+                    "temperature": 0.3,
+                },
+            )
+            if resp.status_code != 200:
+                raise HTTPException(502, f"AI API error ({AI_PROVIDER}): {resp.status_code} {resp.text[:200]}")
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
 
 
 @router.post("/ask", response_model=AskResponse)
 async def ask_analytics(req: AskRequest, db: AsyncSession = Depends(get_db)):
-    """Задать вопрос Claude о данных проекта"""
-    if not ANTHROPIC_API_KEY:
-        raise HTTPException(500, "ANTHROPIC_API_KEY not configured")
-
+    """Задать вопрос AI о данных проекта"""
     object_id = req.object_id
     if not object_id:
-        # Берём первый активный объект
         r = await db.execute(text("SELECT id FROM objects WHERE status='active' LIMIT 1"))
         row = r.fetchone()
         if not row:
@@ -138,73 +174,38 @@ async def ask_analytics(req: AskRequest, db: AsyncSession = Depends(get_db)):
         object_id = row[0]
 
     context = await get_project_context(db, object_id)
+    user_msg = f"<context>\n{context}\n</context>\n\nВопрос: {req.question}"
+    answer = await call_ai(SYSTEM_PROMPT, user_msg)
 
-    system_prompt = """Ты — аналитик строительного проекта СПК (светопрозрачные конструкции).
-Отвечай на русском, кратко и по делу. Используй данные из контекста.
-Если спрашивают про отклонения — считай разницу план/факт.
-Если спрашивают про прогноз — экстраполируй текущий темп.
-Форматируй числа с единицами измерения."""
-
-    messages = [
-        {"role": "user", "content": f"<context>\n{context}\n</context>\n\nВопрос: {req.question}"}
-    ]
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": CLAUDE_MODEL,
-                "max_tokens": 2048,
-                "system": system_prompt,
-                "messages": messages,
-            },
-        )
-
-    if resp.status_code != 200:
-        raise HTTPException(502, f"Claude API error: {resp.status_code} {resp.text[:200]}")
-
-    data = resp.json()
-    answer = data.get("content", [{}])[0].get("text", "Нет ответа")
-
-    return AskResponse(answer=answer, data_context={"object_id": object_id})
+    return AskResponse(answer=answer, data_context={"object_id": object_id, "provider": AI_PROVIDER})
 
 
 @router.get("/{object_id}/summary")
 async def project_summary(object_id: int, db: AsyncSession = Depends(get_db)):
-    """Сводка по проекту без Claude — чистые данные"""
+    """Сводка по проекту без AI — чистые данные"""
     obj = await db.get(ConstructionObject, object_id)
     if not obj:
         raise HTTPException(404, "Object not found")
 
-    # Общий прогресс
     total = await db.execute(text("""
-        SELECT
-            COALESCE(SUM(plan_qty),0) as total_plan,
-            COALESCE(SUM(fact_qty),0) as total_fact
+        SELECT COALESCE(SUM(plan_qty),0), COALESCE(SUM(fact_qty),0)
         FROM floor_volumes WHERE object_id = :oid
     """), {"oid": object_id})
     t = total.fetchone()
-    total_plan = float(t[0])
-    total_fact = float(t[1])
+    total_plan, total_fact = float(t[0]), float(t[1])
 
-    # Отстающие этажи (модули)
     lagging = await db.execute(text("""
         SELECT fv.floor, fv.facade, fv.plan_qty, fv.fact_qty
         FROM floor_volumes fv
         JOIN work_types wt ON wt.id = fv.work_type_id
         WHERE fv.object_id = :oid AND wt.code = 'МОД'
             AND fv.fact_qty < fv.plan_qty AND fv.plan_qty > 0
-        ORDER BY (fv.fact_qty / fv.plan_qty) ASC
-        LIMIT 10
+        ORDER BY (fv.fact_qty / fv.plan_qty) ASC LIMIT 10
     """), {"oid": object_id})
 
     return {
-        "object": {"id": obj.id, "name": obj.name, "status": obj.status.value if hasattr(obj.status, 'value') else str(obj.status)},
+        "object": {"id": obj.id, "name": obj.name,
+                    "status": obj.status.value if hasattr(obj.status, 'value') else str(obj.status)},
         "total_plan": total_plan,
         "total_fact": total_fact,
         "total_pct": round(total_fact / total_plan * 100, 1) if total_plan > 0 else 0,
