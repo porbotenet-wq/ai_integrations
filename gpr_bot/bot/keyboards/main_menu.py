@@ -1,7 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from bot.db.models import UserRole
 from bot.rbac.permissions import has_permission
-from bot.config import get_settings
+from bot.utils.deep_links import webapp_button
 
 # Reply keyboard buttons (persistent) — kept for backward compat
 BTN_OBJECTS = "📋 Мои объекты"
@@ -30,13 +30,10 @@ def main_menu_inline(role: UserRole, unread_count: int = 0) -> InlineKeyboardMar
         ],
     ]
 
-    # Mini App button
-    settings = get_settings()
-    webapp_url = settings.webapp_url
-    if webapp_url:
-        buttons.append([
-            InlineKeyboardButton(text="📱 Открыть Mini App", web_app=WebAppInfo(url=webapp_url)),
-        ])
+    # Mini App button (uses dynamic tunnel URL)
+    buttons.append([
+        webapp_button("📱 Открыть Mini App"),
+    ])
 
     if has_permission(role, "admin.manage_users"):
         buttons.append([

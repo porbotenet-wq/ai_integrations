@@ -6,14 +6,16 @@ import { TasksTab } from "@/features/tasks/TasksTab";
 import { SupplyTab } from "@/features/supply/SupplyTab";
 import { ConstructionTab } from "@/features/construction/ConstructionTab";
 import { DocumentsTab } from "@/features/documents/DocumentsTab";
+import { ProductionChainTab } from "@/features/production-chain/ProductionChainTab";
 import { OBJECT_STATUS_LABELS, statusColor } from "@/shared/lib/format";
 
-type Tab = "gpr" | "tasks" | "construction" | "supply" | "docs";
+type Tab = "gpr" | "tasks" | "construction" | "supply" | "docs" | "production";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "gpr", label: "ГПР", icon: "📋" },
   { id: "tasks", label: "Задачи", icon: "✅" },
   { id: "construction", label: "Монтаж", icon: "🏗" },
+  { id: "production", label: "Произв.", icon: "🏭" },
   { id: "supply", label: "Поставки", icon: "📦" },
   { id: "docs", label: "Документы", icon: "📄" },
 ];
@@ -72,6 +74,7 @@ export function ObjectPage() {
         {activeTab === "gpr" && <GPRTab objectId={objectId} />}
         {activeTab === "tasks" && <TasksTab objectId={objectId} />}
         {activeTab === "construction" && <ConstructionTab objectId={objectId} />}
+        {activeTab === "production" && <ProductionChainTab objectId={objectId} />}
         {activeTab === "supply" && <SupplyTab objectId={objectId} />}
         {activeTab === "docs" && <DocumentsTab objectId={objectId} />}
       </div>

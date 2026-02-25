@@ -1,4 +1,5 @@
 from aiogram import Bot
+from aiogram.types import InlineKeyboardMarkup
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.db.models import Notification, NotificationType, User
@@ -26,7 +27,11 @@ async def create_notification(
     return notif
 
 
-async def send_push(bot: Bot, session: AsyncSession, user_id: int, title: str, text: str = ""):
+async def send_push(
+    bot: Bot, session: AsyncSession, user_id: int,
+    title: str, text: str = "",
+    entity_type: str = "", entity_id: int | None = None,
+):
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -35,9 +40,44 @@ async def send_push(bot: Bot, session: AsyncSession, user_id: int, title: str, t
         message = f"🔔 <b>{title}</b>"
         if text:
             message += f"\n{text}"
-        await bot.send_message(user.telegram_id, message, parse_mode="HTML")
+
+        # Build deep link keyboard
+        kb = _build_push_keyboard(entity_type, entity_id)
+        await bot.send_message(
+            user.telegram_id, message,
+            parse_mode="HTML", reply_markup=kb,
+        )
     except Exception:
         pass
+
+
+def _build_push_keyboard(entity_type: str, entity_id: int | None) -> InlineKeyboardMarkup | None:
+    """Build inline keyboard with deep link to entity in Mini App."""
+    if not entity_id:
+        return None
+    try:
+        from bot.utils.deep_links import (
+            object_button, object_tasks_button, object_gpr_button,
+            object_supply_button, notifications_button,
+        )
+        buttons = []
+        if entity_type == "object":
+            buttons.append([object_button(entity_id)])
+        elif entity_type == "task":
+            buttons.append([object_tasks_button(entity_id)])
+        elif entity_type == "gpr":
+            buttons.append([object_gpr_button(entity_id)])
+        elif entity_type == "supply":
+            buttons.append([object_supply_button(entity_id)])
+        elif entity_type == "stage":
+            from bot.utils.deep_links import object_construction_button
+            buttons.append([object_construction_button(entity_id)])
+        else:
+            buttons.append([notifications_button("📱 Подробнее")])
+
+        return InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
+    except Exception:
+        return None
 
 
 async def notify_and_push(
@@ -51,7 +91,7 @@ async def notify_and_push(
     entity_id: int | None = None,
 ):
     await create_notification(session, user_id, type, title, text, entity_type, entity_id)
-    await send_push(bot, session, user_id, title, text)
+    await send_push(bot, session, user_id, title, text, entity_type, entity_id)
 
 
 async def get_unread_count(session: AsyncSession, user_id: int) -> int:

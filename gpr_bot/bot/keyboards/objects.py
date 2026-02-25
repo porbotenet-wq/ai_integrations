@@ -3,6 +3,10 @@ from bot.utils.callbacks import ObjectCB, NavCB, GPRCB
 from bot.utils.formatters import fmt_status, truncate
 from bot.db.models import UserRole
 from bot.rbac.permissions import has_permission
+from bot.utils.deep_links import (
+    object_button, object_tasks_button, object_gpr_button,
+    object_supply_button, object_construction_button, object_production_button,
+)
 
 
 def objects_list_kb(objects: list, page: int = 0, page_size: int = 5) -> InlineKeyboardMarkup:
@@ -44,6 +48,15 @@ def object_detail_kb(obj_id: int, role: UserRole) -> InlineKeyboardMarkup:
             callback_data=ObjectCB(action="new_task", id=obj_id).pack()
         )])
 
+    # Deep link row — open in Mini App
+    buttons.append([
+        object_tasks_button(obj_id),
+        object_production_button(obj_id),
+    ])
+    buttons.append([
+        object_button(obj_id, "📱 Открыть в Mini App"),
+    ])
+
     buttons.append([InlineKeyboardButton(
         text="◀️ Назад к списку",
         callback_data=NavCB(to="back", ctx="objects").pack()
@@ -62,10 +75,7 @@ def gpr_detail_kb(gpr_id: int, obj_id: int, role: UserRole, can_sign: bool = Fal
         ])
 
     # Mini App button for full GPR view
-    buttons.append([InlineKeyboardButton(
-        text="📊 Открыть полный ГПР",
-        web_app=None  # Will be set with WebAppInfo(url=...) in production
-    )])
+    buttons.append([object_gpr_button(obj_id)])
 
     buttons.append([InlineKeyboardButton(
         text="◀️ Назад",

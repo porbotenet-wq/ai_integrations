@@ -335,12 +335,14 @@ async def get_construction_stages(object_id: int, db: AsyncSession = Depends(get
 
 # ─── PRODUCTION / EXCEL / ANALYTICS / AUTH ROUTES ─────────
 from api.routes.production import router as production_router
+from api.routes.production_chain import router as production_chain_router
 from api.routes.excel import router as excel_router
 from api.routes.analytics import router as analytics_router
 from api.routes.auth import router as auth_router
 
 app.include_router(auth_router)
 app.include_router(production_router)
+app.include_router(production_chain_router)
 app.include_router(excel_router)
 app.include_router(analytics_router)
 
