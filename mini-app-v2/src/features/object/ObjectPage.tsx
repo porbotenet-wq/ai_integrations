@@ -10,13 +10,15 @@ import { ProductionChainTab } from "@/features/production-chain/ProductionChainT
 import { AIChatTab } from "@/features/ai-chat/AIChatTab";
 import { FactEntryTab } from "@/features/fact-entry/FactEntryTab";
 import { TeamOverviewTab } from "@/features/team/TeamOverviewTab";
+import { WorkflowTab } from "@/features/workflow/WorkflowTab";
 import { OBJECT_STATUS_LABELS, statusColor } from "@/shared/lib/format";
 
-type Tab = "gpr" | "tasks" | "construction" | "supply" | "docs" | "production" | "fact" | "team" | "ai";
+type Tab = "gpr" | "tasks" | "construction" | "supply" | "docs" | "production" | "fact" | "team" | "workflow" | "ai";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "gpr", label: "ГПР", icon: "📋" },
   { id: "tasks", label: "Задачи", icon: "✅" },
+  { id: "workflow", label: "Этапы", icon: "🔄" },
   { id: "construction", label: "Монтаж", icon: "🏗" },
   { id: "production", label: "Произв.", icon: "🏭" },
   { id: "supply", label: "Поставки", icon: "📦" },
@@ -89,6 +91,7 @@ export function ObjectPage() {
         {activeTab === "docs" && <DocumentsTab objectId={objectId} />}
         {activeTab === "fact" && <FactEntryTab objectId={objectId} />}
         {activeTab === "team" && <TeamOverviewTab objectId={objectId} />}
+        {activeTab === "workflow" && <WorkflowTab objectId={objectId} />}
         {activeTab === "ai" && <AIChatTab objectId={objectId} objectName={obj.name} />}
       </div>
     </div>
