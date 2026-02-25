@@ -9,9 +9,10 @@ import { DocumentsTab } from "@/features/documents/DocumentsTab";
 import { ProductionChainTab } from "@/features/production-chain/ProductionChainTab";
 import { AIChatTab } from "@/features/ai-chat/AIChatTab";
 import { FactEntryTab } from "@/features/fact-entry/FactEntryTab";
+import { TeamOverviewTab } from "@/features/team/TeamOverviewTab";
 import { OBJECT_STATUS_LABELS, statusColor } from "@/shared/lib/format";
 
-type Tab = "gpr" | "tasks" | "construction" | "supply" | "docs" | "production" | "fact" | "ai";
+type Tab = "gpr" | "tasks" | "construction" | "supply" | "docs" | "production" | "fact" | "team" | "ai";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "gpr", label: "ГПР", icon: "📋" },
@@ -21,6 +22,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "supply", label: "Поставки", icon: "📦" },
   { id: "docs", label: "Документы", icon: "📄" },
   { id: "fact", label: "Факт", icon: "📝" },
+  { id: "team", label: "Команда", icon: "👥" },
   { id: "ai", label: "AI", icon: "🤖" },
 ];
 
@@ -86,6 +88,7 @@ export function ObjectPage() {
         {activeTab === "supply" && <SupplyTab objectId={objectId} />}
         {activeTab === "docs" && <DocumentsTab objectId={objectId} />}
         {activeTab === "fact" && <FactEntryTab objectId={objectId} />}
+        {activeTab === "team" && <TeamOverviewTab objectId={objectId} />}
         {activeTab === "ai" && <AIChatTab objectId={objectId} objectName={obj.name} />}
       </div>
     </div>

@@ -1743,3 +1743,76 @@ def register_miniapp_routes(app: FastAPI):
 
         await db.commit()
         return {"updated": updated, "total": len(req.entries)}
+
+    # ─── TEAM OVERVIEW (для руководства) ─────────────────
+
+    @app.get("/api/objects/{object_id}/team-tasks")
+    async def get_team_tasks(object_id: int, db: AsyncSession = Depends(get_db)):
+        """Задачи по сотрудникам — для директоров и руководителей"""
+        from datetime import date as dt_date
+
+        result = await db.execute(
+            select(Task)
+            .options(selectinload(Task.assignee))
+            .where(Task.object_id == object_id, Task.status != TaskStatus.DONE)
+            .order_by(Task.deadline)
+        )
+        tasks = result.scalars().all()
+        today = dt_date.today()
+
+        # Group by assignee
+        by_person: dict = {}
+        unassigned = []
+        for t in tasks:
+            if t.assignee:
+                name = t.assignee.full_name
+                pid = t.assignee_id
+            else:
+                unassigned.append(t)
+                continue
+
+            if pid not in by_person:
+                by_person[pid] = {
+                    "id": pid,
+                    "name": name,
+                    "role": t.assignee.role.value if t.assignee.role else "viewer",
+                    "tasks": [],
+                    "overdue": 0,
+                    "total": 0,
+                }
+            days_left = (t.deadline - today).days if t.deadline else None
+            is_overdue = days_left is not None and days_left < 0
+
+            by_person[pid]["tasks"].append({
+                "id": t.id,
+                "title": t.title,
+                "status": t.status.value,
+                "priority": t.priority,
+                "deadline": t.deadline.isoformat() if t.deadline else None,
+                "days_left": days_left,
+                "overdue": is_overdue,
+            })
+            by_person[pid]["total"] += 1
+            if is_overdue:
+                by_person[pid]["overdue"] += 1
+
+        # Sort: most overdue first, then by total tasks
+        team = sorted(by_person.values(), key=lambda p: (-p["overdue"], -p["total"]))
+
+        return {
+            "team": team,
+            "unassigned": [
+                {
+                    "id": t.id, "title": t.title, "status": t.status.value,
+                    "priority": t.priority,
+                    "deadline": t.deadline.isoformat() if t.deadline else None,
+                }
+                for t in unassigned
+            ],
+            "summary": {
+                "total_people": len(team),
+                "total_tasks": len(tasks),
+                "total_overdue": sum(p["overdue"] for p in team),
+                "unassigned_count": len(unassigned),
+            },
+        }
