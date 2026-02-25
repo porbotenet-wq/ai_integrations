@@ -1464,6 +1464,50 @@ def register_miniapp_routes(app: FastAPI):
             db.add(notif)
             notifications_sent += 1
 
+        # ── Auto-create workflow from default template ──
+        from bot.db.models import WorkflowTemplate, WorkflowTemplateStep, WorkflowInstance, WorkflowInstanceStep
+        tmpl_result = await db.execute(
+            select(WorkflowTemplate).where(WorkflowTemplate.is_default == True).limit(1)
+        )
+        default_tmpl = tmpl_result.scalar_one_or_none()
+        if default_tmpl:
+            wf_instance = WorkflowInstance(
+                object_id=obj.id, template_id=default_tmpl.id, status="active"
+            )
+            db.add(wf_instance)
+            await db.flush()
+
+            tmpl_steps = await db.execute(
+                select(WorkflowTemplateStep)
+                .where(WorkflowTemplateStep.template_id == default_tmpl.id)
+                .order_by(WorkflowTemplateStep.step_number)
+            )
+            # Build role→user mapping from team
+            role_to_user = {}
+            for member in s2.team:
+                role_to_user[member.role] = member.user_id
+
+            from datetime import timedelta
+            current_date = date.fromisoformat(s1.contract_date) if s1.contract_date else date.today()
+            for ts in tmpl_steps.scalars():
+                duration = ts.duration_days or 1
+                planned_end = current_date + timedelta(days=duration)
+                assignee_id = role_to_user.get(ts.responsible_role)
+
+                wf_step = WorkflowInstanceStep(
+                    instance_id=wf_instance.id,
+                    template_step_id=ts.id,
+                    step_number=ts.step_number,
+                    name=ts.name,
+                    phase=ts.phase,
+                    assignee_id=assignee_id,
+                    status="active" if ts.step_number == 1 else "pending",
+                    planned_start=current_date,
+                    planned_end=planned_end,
+                )
+                db.add(wf_step)
+                current_date = planned_end
+
         await db.commit()
 
         # ── Send data to Telegram bot (via sendData) ──

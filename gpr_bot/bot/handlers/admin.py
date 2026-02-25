@@ -258,12 +258,56 @@ async def obj_confirm(callback: CallbackQuery, state: FSMContext, db_user: User 
     )
 
     await log_action(session, db_user.id, "object_create", "object", obj.id)
+
+    # ── Auto-create workflow from default template ──
+    from bot.db.models import WorkflowTemplate, WorkflowTemplateStep, WorkflowInstance, WorkflowInstanceStep
+    from sqlalchemy import select
+    from datetime import timedelta
+
+    tmpl_result = await session.execute(
+        select(WorkflowTemplate).where(WorkflowTemplate.is_default == True).limit(1)
+    )
+    default_tmpl = tmpl_result.scalar_one_or_none()
+    if default_tmpl:
+        wf_instance = WorkflowInstance(
+            object_id=obj.id, template_id=default_tmpl.id, status="active"
+        )
+        session.add(wf_instance)
+        await session.flush()
+
+        tmpl_steps = await session.execute(
+            select(WorkflowTemplateStep)
+            .where(WorkflowTemplateStep.template_id == default_tmpl.id)
+            .order_by(WorkflowTemplateStep.step_number)
+        )
+        start_date = contract_date or date_type.today()
+        for ts in tmpl_steps.scalars():
+            duration = ts.duration_days or 1
+            planned_end = start_date + timedelta(days=duration)
+            # Assign to creator if role matches
+            assignee_id = db_user.id if ts.responsible_role == db_user.role.value else None
+
+            wf_step = WorkflowInstanceStep(
+                instance_id=wf_instance.id,
+                template_step_id=ts.id,
+                step_number=ts.step_number,
+                name=ts.name,
+                phase=ts.phase,
+                assignee_id=assignee_id,
+                status="active" if ts.step_number == 1 else "pending",
+                planned_start=start_date,
+                planned_end=planned_end,
+            )
+            session.add(wf_step)
+            start_date = planned_end
+
     await session.commit()
     await state.clear()
 
+    workflow_msg = "\n🔄 Workflow создан (64 этапа)" if default_tmpl else ""
     await callback.message.edit_text(
         f"✅ Объект создан: <b>{obj.name}</b> (ID: {obj.id})\n"
-        f"Статус: Черновик\n\n"
+        f"Статус: Черновик{workflow_msg}\n\n"
         f"Вы назначены руководителем проекта.",
         parse_mode="HTML",
     )
