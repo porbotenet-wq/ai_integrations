@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useObject } from "@/shared/api";
 import { GPRTab } from "@/features/gpr/GPRTab";
 import { TasksTab } from "@/features/tasks/TasksTab";
@@ -22,9 +22,13 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 
 export function ObjectPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const objectId = Number(id);
   const { data: obj, isLoading } = useObject(objectId);
-  const [activeTab, setActiveTab] = useState<Tab>("gpr");
+
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const validTab = tabParam && TABS.some((t) => t.id === tabParam) ? tabParam : "gpr";
+  const [activeTab, setActiveTab] = useState<Tab>(validTab);
 
   if (isLoading) {
     return (
