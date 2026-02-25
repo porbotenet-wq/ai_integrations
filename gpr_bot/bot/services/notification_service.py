@@ -2,7 +2,7 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from bot.db.models import Notification, NotificationType, User
+from bot.db.models import Notification, NotificationType, User, ObjectChat
 
 
 async def create_notification(
@@ -89,9 +89,51 @@ async def notify_and_push(
     text: str = "",
     entity_type: str = "",
     entity_id: int | None = None,
+    object_id: int | None = None,
 ):
     await create_notification(session, user_id, type, title, text, entity_type, entity_id)
     await send_push(bot, session, user_id, title, text, entity_type, entity_id)
+
+    # Also send to linked chats if object_id is provided
+    if object_id:
+        await send_to_linked_chats(bot, session, object_id, title, text, entity_type, entity_id)
+
+
+async def send_to_linked_chats(
+    bot: Bot,
+    session: AsyncSession,
+    object_id: int,
+    title: str,
+    text: str = "",
+    entity_type: str = "",
+    entity_id: int | None = None,
+):
+    """Send notification to all TG chats linked to this object."""
+    result = await session.execute(
+        select(ObjectChat).where(
+            ObjectChat.object_id == object_id,
+            ObjectChat.is_active == True,
+        )
+    )
+    chats = result.scalars().all()
+
+    if not chats:
+        return
+
+    message = f"🔔 <b>{title}</b>"
+    if text:
+        message += f"\n{text}"
+
+    kb = _build_push_keyboard(entity_type, entity_id)
+
+    for chat in chats:
+        try:
+            await bot.send_message(
+                chat.chat_id, message,
+                parse_mode="HTML", reply_markup=kb,
+            )
+        except Exception:
+            pass
 
 
 async def get_unread_count(session: AsyncSession, user_id: int) -> int:

@@ -647,6 +647,30 @@ class GPRWeekly(Base):
     work_type = relationship("WorkType")
 
 
+    object = relationship("ConstructionObject")
+
+
+# ─── TELEGRAM CHAT LINKS ────────────────────────────────
+
+class ObjectChat(Base):
+    """Привязка TG-чатов/групп к объектам и задачам"""
+    __tablename__ = "object_chats"
+
+    id = Column(Integer, primary_key=True)
+    object_id = Column(Integer, ForeignKey("objects.id"), nullable=False)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
+    chat_id = Column(BigInteger, nullable=False)
+    chat_title = Column(String(255))
+    chat_type = Column(String(20), default="group")  # group, supergroup
+    linked_by_id = Column(Integer, ForeignKey("users.id"))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=func.now())
+
+    object = relationship("ConstructionObject")
+    task = relationship("Task")
+    linked_by = relationship("User")
+
+
 class DailyProgress(Base):
     """Прогресс по датам (консолидация)"""
     __tablename__ = "daily_progress"

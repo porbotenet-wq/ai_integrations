@@ -9,7 +9,7 @@ from bot.db.session import init_db
 from bot.middlewares.auth import AuthMiddleware
 from bot.middlewares.throttling import ThrottlingMiddleware
 
-from bot.handlers import start, objects, tasks, gpr, supply, construction, notifications, admin, fact, dashboard, newtask
+from bot.handlers import start, objects, tasks, gpr, supply, construction, notifications, admin, fact, dashboard, newtask, chat_links
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,6 +52,7 @@ async def main():
     dp.include_router(fact.router)
     dp.include_router(dashboard.router)
     dp.include_router(newtask.router)
+    dp.include_router(chat_links.router)
 
     # Set bot commands
     from aiogram.types import BotCommand

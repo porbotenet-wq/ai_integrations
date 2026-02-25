@@ -10,10 +10,11 @@ interface Props {
   objectId: number;
 }
 
-type SubTab = 'zones' | 'materials' | 'warehouse' | 'shipments';
+type SubTab = 'zones' | 'materials' | 'warehouse' | 'shipments' | 'tracking';
 
 const SUB_TABS: { id: SubTab; label: string; icon: React.ReactNode }[] = [
   { id: 'zones', label: 'Зоны', icon: <Layers size={14} /> },
+  { id: 'tracking', label: 'Трекинг', icon: <Factory size={14} /> },
   { id: 'materials', label: 'Материалы', icon: <Boxes size={14} /> },
   { id: 'warehouse', label: 'Склад', icon: <Package size={14} /> },
   { id: 'shipments', label: 'Отгрузки', icon: <Truck size={14} /> },
@@ -43,6 +44,7 @@ export function ProductionChainTab({ objectId }: Props) {
       </div>
 
       {subTab === 'zones' && <ZonesView objectId={objectId} />}
+      {subTab === 'tracking' && <TrackingView objectId={objectId} />}
       {subTab === 'materials' && <MaterialsView objectId={objectId} />}
       {subTab === 'warehouse' && <WarehouseView objectId={objectId} />}
       {subTab === 'shipments' && <ShipmentsView objectId={objectId} />}
@@ -294,6 +296,117 @@ function ShipmentsView({ objectId }: { objectId: number }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ── Element Tracking (pipeline) ───────────────────────── */
+
+const STAGE_COLORS: Record<string, { text: string; bg: string; border: string }> = {
+  design: { text: 'text-tg-hint', bg: 'bg-tg-hint/10', border: 'border-l-tg-hint/30' },
+  production_queue: { text: 'text-status-yellow', bg: 'bg-status-yellow/10', border: 'border-l-status-yellow/50' },
+  in_production: { text: 'text-status-blue', bg: 'bg-status-blue/10', border: 'border-l-status-blue/50' },
+  quality_check: { text: 'text-status-orange', bg: 'bg-status-orange/10', border: 'border-l-status-orange/50' },
+  warehouse: { text: 'text-status-green', bg: 'bg-status-green/10', border: 'border-l-status-green/50' },
+  shipped: { text: 'text-status-green', bg: 'bg-status-green/10', border: 'border-l-status-green/50' },
+  installed: { text: 'text-status-green', bg: 'bg-status-green/10', border: 'border-l-status-green/50' },
+};
+
+const STAGE_ICONS: Record<string, string> = {
+  design: '📐', production_queue: '⏳', in_production: '🏭',
+  quality_check: '🔍', warehouse: '📦', shipped: '🚛', installed: '✅',
+};
+
+function TrackingView({ objectId }: { objectId: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['element-status', objectId],
+    queryFn: () => api.get<any>(`/api/production-chain/${objectId}/element-status`),
+  });
+  const [expandedStage, setExpandedStage] = useState<string | null>(null);
+
+  if (isLoading) return <Skeleton count={5} />;
+  if (!data?.stages?.length) return <Empty text="Нет данных трекинга" />;
+
+  const s = data.summary;
+
+  return (
+    <div className="space-y-3">
+      {/* Summary */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-tg-text">Прогресс элементов</span>
+          <span className="text-xs font-medium text-status-blue">{s.done}/{s.total}</span>
+        </div>
+        <div className="h-2 bg-tg-hint/10 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full bg-status-blue transition-all duration-700"
+            style={{ width: `${s.completion_pct}%` }}
+          />
+        </div>
+        <div className="flex items-center gap-4 mt-2 text-2xs text-tg-hint">
+          <span>В работе: {s.in_progress}</span>
+          <span>Готово: {s.done}</span>
+          {s.defects > 0 && (
+            <span className="text-status-red flex items-center gap-0.5">
+              <AlertTriangle size={10} /> Дефекты: {s.defects}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Pipeline stages */}
+      {data.stages.map((stage: any) => {
+        const colors = STAGE_COLORS[stage.key] || STAGE_COLORS.design;
+        const icon = STAGE_ICONS[stage.key] || '📋';
+        const isOpen = expandedStage === stage.key;
+
+        return (
+          <div key={stage.key} className={`card border-l-4 ${colors.border}`}>
+            <button
+              onClick={() => setExpandedStage(isOpen ? null : stage.key)}
+              className="w-full text-left touch-target"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="text-base">{icon}</span>
+                  <div>
+                    <span className="text-sm font-medium text-tg-text">{stage.label}</span>
+                    <span className={`ml-2 text-xs font-semibold ${colors.text}`}>{stage.count}</span>
+                  </div>
+                </div>
+                {stage.count > 0 && (
+                  <ChevronDown
+                    size={14}
+                    className={`text-tg-hint transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                  />
+                )}
+              </div>
+            </button>
+
+            {isOpen && stage.items.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-tg-hint/10 space-y-1.5">
+                {stage.items.map((item: any) => (
+                  <div key={item.id} className="flex items-center gap-2 py-1 text-xs">
+                    <span className="font-mono text-tg-hint w-20 flex-shrink-0 truncate">{item.mark}</span>
+                    <span className="text-tg-text flex-1 truncate" title={item.zone_name}>
+                      {item.zone_name}
+                    </span>
+                    <span className="text-tg-hint flex-shrink-0">{item.quantity} шт</span>
+                    {item.defect_count > 0 && (
+                      <span className="badge-red flex-shrink-0">⚠ {item.defect_count}</span>
+                    )}
+                    <span className={`text-2xs font-medium flex-shrink-0 w-8 text-right ${
+                      item.completion_pct >= 100 ? 'text-status-green'
+                      : item.completion_pct >= 50 ? 'text-status-blue'
+                      : 'text-tg-hint'
+                    }`}>{item.completion_pct}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

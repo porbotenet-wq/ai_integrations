@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from bot.db.session import async_session
 from bot.db.models import (
     Zone, BOMItem, Material, ProductionPlan, ElementStatus,
-    Warehouse, Shipment, ConstructionObject,
+    Warehouse, Shipment, ConstructionObject, ObjectChat,
 )
 
 router = APIRouter(prefix="/api/production-chain", tags=["production-chain"])
@@ -212,4 +212,117 @@ async def get_shipments(object_id: int, db: AsyncSession = Depends(get_db)):
             "zone_id": s.zone_id,
         }
         for s in shipments
+    ]
+
+
+# ── Element Status (tracking pipeline) ───────────────────
+
+STAGE_ORDER = ['design', 'production_queue', 'in_production', 'quality_check', 'warehouse', 'shipped', 'installed']
+STAGE_LABELS = {
+    'design': 'Проектирование',
+    'production_queue': 'Очередь произв.',
+    'in_production': 'В производстве',
+    'quality_check': 'Контроль качества',
+    'warehouse': 'На складе',
+    'shipped': 'Отгружено',
+    'installed': 'Смонтировано',
+}
+
+
+@router.get("/{object_id}/element-status")
+async def get_element_status(object_id: int, db: AsyncSession = Depends(get_db)):
+    """Get element tracking pipeline — BOM items grouped by production stage."""
+    # Get all zones for this object
+    zone_ids = (await db.execute(
+        select(Zone.id).where(Zone.object_id == object_id)
+    )).scalars().all()
+
+    if not zone_ids:
+        return {"stages": [], "summary": {}}
+
+    # Get BOM items with element status and zone info
+    result = await db.execute(
+        select(BOMItem, ElementStatus, Zone)
+        .outerjoin(ElementStatus, ElementStatus.bom_item_id == BOMItem.id)
+        .join(Zone, Zone.id == BOMItem.zone_id)
+        .where(BOMItem.zone_id.in_(zone_ids))
+        .order_by(BOMItem.mark)
+    )
+    rows = result.all()
+
+    # Group by stage
+    by_stage: dict[str, list] = {s: [] for s in STAGE_ORDER}
+    total = 0
+    total_defects = 0
+
+    for bom, es, zone in rows:
+        stage = es.status if es else 'design'
+        if stage not in by_stage:
+            stage = 'design'
+        total += 1
+        defects = es.defect_count if es else 0
+        total_defects += defects
+
+        by_stage[stage].append({
+            "id": bom.id,
+            "mark": bom.mark,
+            "item_type": bom.item_type,
+            "material": bom.material,
+            "quantity": bom.quantity,
+            "zone_name": zone.name,
+            "completion_pct": es.completion_pct if es else 0,
+            "defect_count": defects,
+            "time_norm": es.time_norm if es else None,
+            "time_fact": es.time_fact if es else None,
+            "comment": es.comment if es else None,
+            "stage_date": es.stage_date.isoformat() if es and es.stage_date else None,
+        })
+
+    stages = []
+    for s in STAGE_ORDER:
+        items = by_stage[s]
+        stages.append({
+            "key": s,
+            "label": STAGE_LABELS[s],
+            "count": len(items),
+            "items": items,
+        })
+
+    # Summary
+    completed_stages = {'warehouse', 'shipped', 'installed'}
+    done = sum(len(by_stage[s]) for s in completed_stages)
+
+    return {
+        "stages": stages,
+        "summary": {
+            "total": total,
+            "done": done,
+            "in_progress": total - done,
+            "defects": total_defects,
+            "completion_pct": round(done / total * 100) if total > 0 else 0,
+        },
+    }
+
+
+# ── Object Chats (linked TG groups) ──────────────────────
+
+@router.get("/{object_id}/chats")
+async def get_object_chats(object_id: int, db: AsyncSession = Depends(get_db)):
+    """Get TG chats linked to this object."""
+    result = await db.execute(
+        select(ObjectChat)
+        .where(ObjectChat.object_id == object_id, ObjectChat.is_active == True)
+        .order_by(ObjectChat.created_at.desc())
+    )
+    chats = result.scalars().all()
+    return [
+        {
+            "id": c.id,
+            "chat_id": c.chat_id,
+            "chat_title": c.chat_title,
+            "chat_type": c.chat_type,
+            "task_id": c.task_id,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in chats
     ]
