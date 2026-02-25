@@ -692,3 +692,21 @@ class DailyProgress(Base):
     created_at = Column(DateTime, default=func.now())
 
     object = relationship("ConstructionObject")
+
+
+class AIChatMessage(Base):
+    """История AI-чата"""
+    __tablename__ = "ai_chat_messages"
+
+    id = Column(Integer, primary_key=True)
+    object_id = Column(Integer, ForeignKey("objects.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    telegram_id = Column(BigInteger, nullable=True)
+    role = Column(String(20), nullable=False)  # user | assistant
+    text = Column(Text, nullable=False)
+    provider = Column(String(50), default="kimi")
+    model = Column(String(100))
+    created_at = Column(DateTime, default=func.now())
+
+    object = relationship("ConstructionObject")
+    user = relationship("User")

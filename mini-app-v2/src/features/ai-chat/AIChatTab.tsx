@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
-import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, History } from 'lucide-react';
 
 interface Props {
   objectId: number;
   objectName: string;
+  userRole?: string;
+  telegramId?: number;
 }
 
 interface Message {
@@ -15,31 +17,66 @@ interface Message {
   timestamp: Date;
 }
 
-const QUICK_QUESTIONS = [
-  'Какой общий прогресс по объекту?',
-  'Какие работы отстают от плана?',
-  'Прогноз завершения по текущим темпам?',
-  'Какие материалы в дефиците?',
-  'Сводка по фасадам',
-];
+interface HistoryMsg {
+  id: number;
+  role: string;
+  text: string;
+  created_at: string;
+}
 
-export function AIChatTab({ objectId, objectName }: Props) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: `Привет! Я AI-аналитик проекта "${objectName}". Задайте вопрос о прогрессе, план/факте, поставках или любых данных объекта.`,
-      timestamp: new Date(),
-    },
-  ]);
+export function AIChatTab({ objectId, objectName, userRole, telegramId }: Props) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Load hints for role
+  const { data: hintsData } = useQuery<{ hints: string[] }>({
+    queryKey: ['ai-hints', userRole],
+    queryFn: () => api.get(`/api/analytics/hints?role=${userRole || 'default'}`),
+  });
+
+  // Load history
+  const { data: history } = useQuery<HistoryMsg[]>({
+    queryKey: ['ai-history', objectId, telegramId],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (telegramId) params.set('telegram_id', String(telegramId));
+      params.set('limit', '50');
+      return api.get(`/api/analytics/history/${objectId}?${params}`);
+    },
+  });
+
+  // Populate from history once
+  useEffect(() => {
+    if (history && !historyLoaded) {
+      const restored: Message[] = history.map((m) => ({
+        id: `h-${m.id}`,
+        role: m.role as 'user' | 'assistant',
+        text: m.text,
+        timestamp: new Date(m.created_at),
+      }));
+      if (restored.length > 0) {
+        setMessages(restored);
+      } else {
+        setMessages([{
+          id: 'welcome',
+          role: 'assistant',
+          text: `Привет! Я AI-аналитик проекта "${objectName}". Задайте вопрос о прогрессе, план/факте, поставках или любых данных объекта.`,
+          timestamp: new Date(),
+        }]);
+      }
+      setHistoryLoaded(true);
+    }
+  }, [history, historyLoaded, objectName]);
 
   const askMutation = useMutation({
     mutationFn: (question: string) =>
       api.post<{ answer: string; data_context?: any }>('/api/analytics/ask', {
         question,
         object_id: objectId,
+        telegram_id: telegramId,
+        role: userRole,
       }),
     onSuccess: (data) => {
       setMessages((prev) => [
@@ -53,7 +90,7 @@ export function AIChatTab({ objectId, objectName }: Props) {
       ]);
     },
     onError: (err: any) => {
-      const msg = err?.message?.includes('ANTHROPIC')
+      const msg = err?.message?.includes('API_KEY')
         ? 'AI-аналитика временно недоступна. API ключ не настроен.'
         : 'Ошибка при обработке запроса. Попробуйте позже.';
       setMessages((prev) => [
@@ -79,8 +116,19 @@ export function AIChatTab({ objectId, objectName }: Props) {
     askMutation.mutate(question);
   };
 
+  const hints = hintsData?.hints || [];
+  const showHints = messages.length <= 2;
+
   return (
     <div className="flex flex-col h-[calc(100vh-200px)] min-h-[400px]">
+      {/* History badge */}
+      {history && history.length > 0 && messages.length > 0 && (
+        <div className="flex items-center gap-1 px-2 py-1 mb-1">
+          <History size={10} className="text-tg-hint" />
+          <span className="text-2xs text-tg-hint">{history.length} сообщений в истории</span>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-3 pb-3">
         {messages.map((msg) => (
@@ -97,10 +145,10 @@ export function AIChatTab({ objectId, objectName }: Props) {
         <div ref={scrollRef} />
       </div>
 
-      {/* Quick questions */}
-      {messages.length <= 2 && (
+      {/* Quick questions — role-dependent */}
+      {showHints && hints.length > 0 && (
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2">
-          {QUICK_QUESTIONS.map((q) => (
+          {hints.map((q) => (
             <button
               key={q}
               onClick={() => handleSend(q)}
