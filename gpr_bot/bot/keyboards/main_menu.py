@@ -12,9 +12,10 @@ BTN_ADMIN = "⚙️ Админ"
 
 
 def main_menu_inline(role: UserRole, unread_count: int = 0) -> InlineKeyboardMarkup:
-    """Главное меню — inline кнопки"""
+    """Главное меню — inline кнопки, адаптированные под роль"""
     notif_text = f"🔔 Уведомления ({unread_count})" if unread_count > 0 else "🔔 Уведомления"
 
+    # Базовые кнопки для всех
     buttons = [
         [
             InlineKeyboardButton(text="📋 Объекты", callback_data="menu:objects"),
@@ -24,21 +25,66 @@ def main_menu_inline(role: UserRole, unread_count: int = 0) -> InlineKeyboardMar
             InlineKeyboardButton(text=notif_text, callback_data="menu:notifications"),
             InlineKeyboardButton(text="📊 Дашборд", callback_data="menu:dashboard"),
         ],
-        [
+    ]
+
+    # Прораб / монтажник / геодезист — ввод факта на первом месте
+    if role in (UserRole.CONSTRUCTION_ITR, UserRole.INSTALLER, UserRole.GEODESIST):
+        buttons.append([
+            InlineKeyboardButton(text="📝 Ввод факта", callback_data="menu:fact"),
+            InlineKeyboardButton(text="📷 Фото отчёт", callback_data="menu:photo"),
+        ])
+    # Менеджер / ПТО / безопасность — задачи + отчёты
+    elif role in (UserRole.PROJECT_MANAGER, UserRole.PTO, UserRole.SAFETY, UserRole.CURATOR):
+        buttons.append([
+            InlineKeyboardButton(text="➕ Новая задача", callback_data="menu:newtask"),
+            InlineKeyboardButton(text="📊 Отчёт", callback_data="menu:report"),
+        ])
+    # Снабжение — поставки
+    elif role == UserRole.SUPPLY:
+        buttons.append([
+            InlineKeyboardButton(text="📦 Поставки", callback_data="menu:supply"),
+            InlineKeyboardButton(text="➕ Новая задача", callback_data="menu:newtask"),
+        ])
+    # Производство — план производства
+    elif role == UserRole.PRODUCTION:
+        buttons.append([
+            InlineKeyboardButton(text="🏭 Производство", callback_data="menu:production"),
+            InlineKeyboardButton(text="📝 Ввод факта", callback_data="menu:fact"),
+        ])
+    # Проектировщики — документы
+    elif role in (UserRole.DESIGN_HEAD, UserRole.DESIGNER_OPR, UserRole.DESIGNER_KM, UserRole.DESIGNER_KMD):
+        buttons.append([
+            InlineKeyboardButton(text="📄 Документы", callback_data="menu:docs"),
+            InlineKeyboardButton(text="➕ Новая задача", callback_data="menu:newtask"),
+        ])
+    # Директор — аналитика
+    elif role == UserRole.DIRECTOR:
+        buttons.append([
+            InlineKeyboardButton(text="📈 Аналитика", callback_data="menu:analytics"),
+            InlineKeyboardButton(text="📊 Отчёт", callback_data="menu:report"),
+        ])
+    # Договорной — контракты
+    elif role == UserRole.CONTRACT:
+        buttons.append([
+            InlineKeyboardButton(text="📄 Документы", callback_data="menu:docs"),
+            InlineKeyboardButton(text="📊 Отчёт", callback_data="menu:report"),
+        ])
+    else:
+        buttons.append([
             InlineKeyboardButton(text="📝 Ввод факта", callback_data="menu:fact"),
             InlineKeyboardButton(text="➕ Новая задача", callback_data="menu:newtask"),
-        ],
-    ]
+        ])
 
     # Mini App button (uses dynamic tunnel URL)
     buttons.append([
         webapp_button("📱 Открыть Mini App"),
     ])
 
+    # Админ-панель
     if has_permission(role, "admin.manage_users"):
         buttons.append([
             InlineKeyboardButton(text="⚙️ Админ", callback_data="menu:admin"),
-            InlineKeyboardButton(text="📊 Отчёт", callback_data="menu:report"),
+            InlineKeyboardButton(text="👥 Пользователи", callback_data="menu:users"),
         ])
 
     buttons.append([
